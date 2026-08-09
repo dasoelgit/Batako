@@ -7,6 +7,7 @@ import {
   checkTiebreakWinner,
   checkSetResult,
   checkMatchResult,
+  isSuddenDeathPoint,
 } from '../utils/tennisRules'
 import { getServeSide, getNextServer } from '../utils/tennisHelpers'
 
@@ -149,6 +150,9 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   // Check if match is complete
   const isMatchComplete = matchWinner !== null && localMatch.status === 'active'
 
+  // Check if Sudden Death Point
+  const isSuddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+
   // ============================================================
   // SNAPSHOT & PERSIST
   // ============================================================
@@ -189,7 +193,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   }
 
   // ============================================================
-  // ADD POINT — FIXED
+  // ADD POINT
   // ============================================================
   const addPoint = async (team) => {
     if (busy) {
@@ -231,13 +235,13 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
-      // Increment deuce count for 2deuces mode
-      if (game_scoring === '2deuces') {
-        const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3
-        const wasAtDeuce = team1_points >= 3 && team2_points >= 3
-        if (wasAtDeuce && isAtDeuce && team1_points === team2_points) {
-          newDeuceCount += 1
-        }
+      // Increment deuce count when both players are at deuce and points are equal
+      // This tracks how many deuces have occurred
+      const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3 && newPoints1 === newPoints2
+      const wasAtDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
+      
+      if (isAtDeuce && wasAtDeuce) {
+        newDeuceCount += 1
       }
 
       const gameWinner = checkGameWinner(newPoints1, newPoints2, game_scoring, newDeuceCount)
@@ -512,7 +516,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   const isSingles = localMatch.play_type === 'singles'
 
   // ============================================================
-  // POINT DISPLAY — FIXED
+  // POINT DISPLAY
   // ============================================================
   const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
   const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
@@ -534,7 +538,13 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
     pointLabel1 = '40'
     pointLabel2 = 'Ad'
     centerLabel = 'Advantage'
+  } else if (isSuddenDeath) {
+    centerLabel = '🔥 Sudden Death Point!'
   }
+
+  // For No Deuce mode, we don't show deuce at all
+  const isNoDeuce = game_scoring === 'no_deuce'
+  const showDeuceDisplay = !isNoDeuce
 
   return (
     <div className="card">
@@ -609,7 +619,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         {tiebreak_active && ` · Tiebreak: ${tiebreak_score1}-${tiebreak_score2}`}
       </div>
 
-      {/* Points Display — FIXED */}
+      {/* Points Display */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -621,7 +631,11 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>
           {pointLabel1}
         </div>
-        <div style={{ fontSize: '16px', color: 'var(--text-muted)', fontWeight: '600' }}>
+        <div style={{ 
+          fontSize: '16px', 
+          color: isSuddenDeath ? '#c0392b' : 'var(--text-muted)', 
+          fontWeight: isSuddenDeath ? '800' : '600',
+        }}>
           {centerLabel}
         </div>
         <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>
@@ -711,7 +725,10 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         borderTop: '1px solid var(--border-light)',
         paddingTop: '8px',
       }}>
-        {game_scoring} · {set_type === 'first_to' ? `First to ${set_value}` : `Best of ${set_value}`}
+        {game_scoring === 'no_deuce' ? 'No Deuce' : 
+         game_scoring === '1deuce' ? '1 Deuce' :
+         game_scoring === '2deuces' ? '2 Deuces' : 'Standard'} · 
+        {set_type === 'first_to' ? `First to ${set_value}` : `Best of ${set_value}`}
         {tiebreak_enabled && ` · Tiebreak ${tiebreak_format}`}
       </div>
     </div>
