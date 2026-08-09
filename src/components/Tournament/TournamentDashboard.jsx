@@ -76,90 +76,152 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     setShowScoreModal(true)
   }
 
-  const handleSaveScore = async () => {
-    setError('')
-    setBusy(true)
+  // ============================================================
+// HANDLE SAVE SCORE — Creates match in main table
+// ============================================================
+const handleSaveScore = async () => {
+  setError('')
+  setBusy(true)
 
-    try {
-      const s1 = parseInt(score1)
-      const s2 = parseInt(score2)
+  try {
+    const s1 = parseInt(score1)
+    const s2 = parseInt(score2)
 
-      if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
-        setError('Please enter valid scores.')
-        setBusy(false)
-        return
-      }
+    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
+      setError('Please enter valid scores.')
+      setBusy(false)
+      return
+    }
 
-      const updatedRounds = [...tournament.rounds]
-      const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
-      const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
-      
-      match.completed = true
-      match.score1 = s1
-      match.score2 = s2
+    const updatedRounds = [...tournament.rounds]
+    const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
+    const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
 
-      // If it's a Mexicano tournament, generate pairings for next round if current round is complete
-      if (tournament.type === 'mexicano') {
-        const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
-        const nextRoundNumber = selectedRound + 1
-        
-        if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds) {
-          // Calculate standings to generate pairings
-          const standings = calculateTournamentStandings(
-            tournament.players,
-            updatedRounds.slice(0, nextRoundNumber - 1),
-            tournament.standing_by
-          )
-          
-          const standingsObj = {}
-          standings.forEach(s => {
-            standingsObj[s.id] = { points: s.Pts }
+    // --- 1. Determine winner / draw ---
+    let winner = null
+    let draw = false
+    if (s1 > s2) winner = 1
+    else if (s2 > s1) winner = 2
+    else draw = true
+
+    // --- 2. Get team players ---
+    const team1Players = match.team1.filter(p => p && !p.isBye)
+    const team2Players = match.team2.filter(p => p && !p.isBye)
+
+    // --- 3. Save to tennis_matches ---
+    const { data: matchData, error: matchError } = await supabase
+      .from('tennis_matches')
+      .insert({
+        play_type: 'doubles',
+        team1_players: team1Players,
+        team2_players: team2Players,
+        status: 'completed',
+        game_scoring: 'standard',
+        set_type: 'best_of',
+        set_value: 1,
+        match_config: 'single',
+        sets: [{
+          set_number: 1,
+          team1_games: s1,
+          team2_games: s2,
+          winner: winner,
+          tiebreak: null,
+        }],
+        current_set: 1,
+        team1_games: s1,
+        team2_games: s2,
+        team1_points: 0,
+        team2_points: 0,
+        winner: winner,
+        draw: draw,
+        tournament_id: tournament.id,
+        is_tournament_match: true,
+        completed_at: new Date().toISOString(),
+      })
+      .select()
+      .single()
+
+    if (matchError) throw matchError
+
+    // --- 4. Link to tournament_matches ---
+    const { error: linkError } = await supabase
+      .from('tennis_tournament_matches')
+      .insert({
+        tournament_id: tournament.id,
+        match_id: matchData.id,
+        round_number: selectedRound,
+      })
+
+    if (linkError) throw linkError
+
+    // --- 5. Update tournament rounds ---
+    match.completed = true
+    match.score1 = s1
+    match.score2 = s2
+
+    // If it's a Mexicano tournament, generate pairings for next round if current round is complete
+    if (tournament.type === 'mexicano') {
+      const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
+      const nextRoundNumber = selectedRound + 1
+
+      if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds) {
+        const standings = calculateTournamentStandings(
+          tournament.players,
+          updatedRounds.slice(0, nextRoundNumber - 1),
+          tournament.standing_by
+        )
+
+        const standingsObj = {}
+        standings.forEach(s => {
+          standingsObj[s.id] = { points: s.Pts }
+        })
+
+        const newPairings = generateMexicanoPairings(tournament.players, standingsObj, nextRoundNumber)
+
+        let nextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
+        if (nextRound) {
+          nextRound.matches = newPairings
+        } else {
+          updatedRounds.push({
+            round_number: nextRoundNumber,
+            matches: newPairings,
           })
-          
-          const newPairings = generateMexicanoPairings(tournament.players, standingsObj, nextRoundNumber)
-          
-          // Find or create next round
-          let nextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
-          if (nextRound) {
-            nextRound.matches = newPairings
-          } else {
-            updatedRounds.push({
-              round_number: nextRoundNumber,
-              matches: newPairings,
-            })
-          }
         }
       }
-
-      // Update tournament
-      const { error: updateError } = await supabase
-        .from('tennis_tournaments')
-        .update({ rounds: updatedRounds })
-        .eq('id', tournament.id)
-
-      if (updateError) throw updateError
-
-      setTournament(prev => ({ ...prev, rounds: updatedRounds }))
-      setShowScoreModal(false)
-      setSelectedMatchIndex(null)
-      setScore1('')
-      setScore2('')
-      setBusy(false)
-
-      // Check if tournament complete
-      if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
-        await supabase
-          .from('tennis_tournaments')
-          .update({ status: 'completed', completed_at: new Date().toISOString() })
-          .eq('id', tournament.id)
-        onTournamentComplete(tournament.id)
-      }
-    } catch (err) {
-      setError(err.message || 'Failed to save score')
-      setBusy(false)
     }
-  }
 
+    // --- 6. Update tournament ---
+    const { error: updateError } = await supabase
+      .from('tennis_tournaments')
+      .update({ rounds: updatedRounds })
+      .eq('id', tournament.id)
+
+    if (updateError) throw updateError
+
+    setTournament(prev => ({ ...prev, rounds: updatedRounds }))
+    setShowScoreModal(false)
+    setSelectedMatchIndex(null)
+    setScore1('')
+    setScore2('')
+    setBusy(false)
+
+    // --- 7. Refresh leaderboard ---
+    window.dispatchEvent(new Event('refreshData'))
+
+    // --- 8. Check if tournament complete ---
+    if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
+      await supabase
+        .from('tennis_tournaments')
+        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .eq('id', tournament.id)
+      onTournamentComplete(tournament.id)
+    }
+  } catch (err) {
+    setError(err.message || 'Failed to save score')
+    setBusy(false)
+  }
+}
+  
   const handleStartLive = async () => {
     // TODO: Implement Live Scoreboard integration
     alert('Live Scoreboard coming soon!')
