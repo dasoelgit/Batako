@@ -4,42 +4,43 @@
 export const POINT_NAMES = ['0', '15', '30', '40']
 
 // ============================================================
-// GAME WINNER — FIXED
+// GAME WINNER — FINAL CORRECT VERSION
 // ============================================================
 export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
   switch (gameScoring) {
-    case 'sudden':
-      // First to 4 points wins (no deuce)
+    case 'no_deuce':
+      // First to 4 points wins. No deuce at all.
+      // 4-0, 4-1, 4-2, 4-3 all win
       if (points1 >= 4 && points1 > points2) return 1
       if (points2 >= 4 && points2 > points1) return 2
       return null
 
-    case 'standard':
-      // Win by 2, unlimited deuce
-      if (points1 >= 4 && points1 - points2 >= 2) return 1
-      if (points2 >= 4 && points2 - points1 >= 2) return 2
-      return null
-
     case '1deuce':
-      // Win by 2, but at deuce (3-3) → next point wins
+      // Normal win by 2, but if it goes to 4-4 (second deuce), sudden death
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
-      // At deuce (3-3) → next point wins
-      if (points1 >= 3 && points2 >= 3) {
+      // At 4-4 (deuceCount >= 1 means we've had one deuce already), sudden death
+      if (points1 >= 4 && points2 >= 4 && deuceCount >= 1) {
         if (points1 > points2) return 1
         if (points2 > points1) return 2
       }
       return null
 
     case '2deuces':
-      // Win by 2, but if still tied after 2 deuces → next point wins
+      // Normal win by 2, but if it goes to 5-5 (third deuce), sudden death
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
-      // After 2 deuces → next point wins
-      if (points1 >= 3 && points2 >= 3 && deuceCount >= 2) {
+      // At 5-5 (deuceCount >= 2 means we've had two deuces already), sudden death
+      if (points1 >= 5 && points2 >= 5 && deuceCount >= 2) {
         if (points1 > points2) return 1
         if (points2 > points1) return 2
       }
+      return null
+
+    case 'standard':
+      // Normal tennis: win by 2, unlimited deuce
+      if (points1 >= 4 && points1 - points2 >= 2) return 1
+      if (points2 >= 4 && points2 - points1 >= 2) return 2
       return null
 
     default:
@@ -48,10 +49,24 @@ export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
 }
 
 // ============================================================
+// CHECK IF SUDDEN DEATH POINT
+// ============================================================
+export function isSuddenDeathPoint(points1, points2, gameScoring, deuceCount) {
+  if (gameScoring === '1deuce') {
+    // At 4-4 (after first deuce), sudden death
+    return points1 >= 4 && points2 >= 4 && deuceCount >= 1
+  }
+  if (gameScoring === '2deuces') {
+    // At 5-5 (after two deuces), sudden death
+    return points1 >= 5 && points2 >= 5 && deuceCount >= 2
+  }
+  return false
+}
+
+// ============================================================
 // TIEBREAK WINNER
 // ============================================================
 export function checkTiebreakWinner(score1, score2, tiebreakFormat) {
-  // First to tiebreakFormat, win by 2
   if (score1 >= tiebreakFormat && score1 - score2 >= 2) return 1
   if (score2 >= tiebreakFormat && score2 - score1 >= 2) return 2
   return null
@@ -62,29 +77,26 @@ export function checkTiebreakWinner(score1, score2, tiebreakFormat) {
 // ============================================================
 export function checkSetResult(games1, games2, setType, setValue, tiebreakEnabled, tiebreakActive) {
   if (setType === 'first_to') {
-    // First to X games wins
     if (games1 >= setValue) return { winner: 1, draw: false, tiebreak: false }
     if (games2 >= setValue) return { winner: 2, draw: false, tiebreak: false }
 
-    // Check if tiebreak should start (both at X-1)
     if (tiebreakEnabled && !tiebreakActive) {
       if (games1 >= setValue - 1 && games2 >= setValue - 1) {
         return { winner: null, draw: false, tiebreak: true }
       }
     }
 
-    return null // continue
+    return null
   }
 
   if (setType === 'best_of') {
-    // Play exactly X games
     const total = games1 + games2
     if (total >= setValue) {
       if (games1 > games2) return { winner: 1, draw: false, tiebreak: false }
       if (games2 > games1) return { winner: 2, draw: false, tiebreak: false }
-      return { winner: null, draw: true, tiebreak: false } // DRAW!
+      return { winner: null, draw: true, tiebreak: false }
     }
-    return null // continue
+    return null
   }
 
   return null
@@ -99,7 +111,6 @@ export function checkMatchResult(sets, matchConfig) {
   const totalSets = sets.length
 
   if (matchConfig === 'single') {
-    // Single set — winner is set winner
     if (totalSets === 0) return null
     const lastSet = sets[sets.length - 1]
     if (lastSet.winner) return { winner: lastSet.winner, draw: false }
@@ -107,36 +118,32 @@ export function checkMatchResult(sets, matchConfig) {
   }
 
   if (matchConfig === 'best_of_3') {
-    // First to 2 sets wins
     if (wins1 >= 2) return { winner: 1, draw: false }
     if (wins2 >= 2) return { winner: 2, draw: false }
-    return null // continue
+    return null
   }
 
   if (matchConfig === 'best_of_5') {
-    // First to 3 sets wins
     if (wins1 >= 3) return { winner: 1, draw: false }
     if (wins2 >= 3) return { winner: 2, draw: false }
-    return null // continue
+    return null
   }
 
   return null
 }
 
 // ============================================================
-// POINT DISPLAY — FIXED
+// POINT DISPLAY
 // ============================================================
 export function getPointDisplay(points1, points2) {
   const labels = ['0', '15', '30', '40']
   
-  // Deuce/Advantage cases
   if (points1 >= 3 && points2 >= 3) {
     if (points1 === points2) return 'Deuce'
     if (points1 === points2 + 1) return 'Ad'
     if (points2 === points1 + 1) return 'Ad'
   }
   
-  // Normal cases
   const d1 = points1 > 3 ? String(points1) : labels[points1] || String(points1)
   const d2 = points2 > 3 ? String(points2) : labels[points2] || String(points2)
   
@@ -149,7 +156,7 @@ export function getPointDisplay(points1, points2) {
 export function getGameScoringLabel(mode) {
   switch (mode) {
     case 'standard': return 'Standard'
-    case 'sudden': return 'Sudden'
+    case 'no_deuce': return 'No Deuce'
     case '1deuce': return '1 Deuce'
     case '2deuces': return '2 Deuces'
     default: return 'Unknown'
