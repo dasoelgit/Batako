@@ -4,21 +4,24 @@
 export const POINT_NAMES = ['0', '15', '30', '40']
 
 // ============================================================
-// GAME WINNER
+// GAME WINNER — FIXED
 // ============================================================
 export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
   switch (gameScoring) {
     case 'sudden':
+      // First to 4 points wins (no deuce)
       if (points1 >= 4 && points1 > points2) return 1
       if (points2 >= 4 && points2 > points1) return 2
       return null
 
     case 'standard':
+      // Win by 2, unlimited deuce
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
       return null
 
     case '1deuce':
+      // Win by 2, but at deuce (3-3) → next point wins
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
       // At deuce (3-3) → next point wins
@@ -29,6 +32,7 @@ export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
       return null
 
     case '2deuces':
+      // Win by 2, but if still tied after 2 deuces → next point wins
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
       // After 2 deuces → next point wins
@@ -120,20 +124,28 @@ export function checkMatchResult(sets, matchConfig) {
 }
 
 // ============================================================
-// DISPLAY HELPERS
+// POINT DISPLAY — FIXED
 // ============================================================
 export function getPointDisplay(points1, points2) {
+  const labels = ['0', '15', '30', '40']
+  
+  // Deuce/Advantage cases
   if (points1 >= 3 && points2 >= 3) {
     if (points1 === points2) return 'Deuce'
     if (points1 === points2 + 1) return 'Ad'
     if (points2 === points1 + 1) return 'Ad'
   }
-
-  const d1 = points1 > 3 ? String(points1) : POINT_NAMES[points1] || String(points1)
-  const d2 = points2 > 3 ? String(points2) : POINT_NAMES[points2] || String(points2)
+  
+  // Normal cases
+  const d1 = points1 > 3 ? String(points1) : labels[points1] || String(points1)
+  const d2 = points2 > 3 ? String(points2) : labels[points2] || String(points2)
+  
   return `${d1}-${d2}`
 }
 
+// ============================================================
+// DISPLAY HELPERS
+// ============================================================
 export function getGameScoringLabel(mode) {
   switch (mode) {
     case 'standard': return 'Standard'
