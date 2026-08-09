@@ -10,54 +10,93 @@ export function generateAmericanoRounds(players, totalRounds) {
   
   let workingPlayers = [...players]
   
-  // For odd number, add a 'bye' placeholder
-  if (!isEven) {
-    workingPlayers.push({ id: 'bye', name: 'BYE', isBye: true })
-  }
-  
-  const n = workingPlayers.length
+  // Track who has partnered with whom
+  const partnered = {}
+  workingPlayers.forEach(p => {
+    if (!p.isBye) {
+      partnered[p.id] = new Set()
+    }
+  })
   
   for (let round = 1; round <= totalRounds; round++) {
-    const roundMatches = []
-    const half = n / 2
+    let roundMatches = []
+    let available = workingPlayers.filter(p => !p.isBye)
     
-    // Pair players for this round
-    const paired = []
-    for (let i = 0; i < half; i++) {
-      const p1 = workingPlayers[i]
-      const p2 = workingPlayers[n - 1 - i]
+    // --- Handle odd number: give BYE to one player ---
+    let byePlayer = null
+    if (available.length % 2 !== 0) {
+      // Give BYE to the last player in the list (rotates each round)
+      byePlayer = available.pop()
+    }
+    
+    // --- Pair remaining players ---
+    let paired = []
+    let remaining = [...available]
+    
+    // Try to pair un-partnered players first
+    for (let i = 0; i < remaining.length; i++) {
+      const p1 = remaining[i]
+      if (paired.some(p => p.id === p1.id)) continue
       
-      if (p1 && p2 && !p1.isBye && !p2.isBye) {
-        paired.push([p1, p2])
-      } else if (p1 && !p1.isBye) {
-        // Bye for p1
-        paired.push([p1, null])
-      } else if (p2 && !p2.isBye) {
-        paired.push([p2, null])
+      let found = false
+      for (let j = i + 1; j < remaining.length; j++) {
+        const p2 = remaining[j]
+        if (paired.some(p => p.id === p2.id)) continue
+        
+        if (!partnered[p1.id].has(p2.id) && !partnered[p2.id].has(p1.id)) {
+          paired.push(p1, p2)
+          partnered[p1.id].add(p2.id)
+          partnered[p2.id].add(p1.id)
+          found = true
+          break
+        }
+      }
+      
+      // If no un-partnered player found, pair with anyone
+      if (!found) {
+        for (let j = i + 1; j < remaining.length; j++) {
+          const p2 = remaining[j]
+          if (paired.some(p => p.id === p2.id)) continue
+          paired.push(p1, p2)
+          partnered[p1.id].add(p2.id)
+          partnered[p2.id].add(p1.id)
+          found = true
+          break
+        }
+      }
+    }
+    
+    // --- Create matches from paired players ---
+    const pairedList = []
+    for (let i = 0; i < paired.length; i += 2) {
+      if (i + 1 < paired.length) {
+        pairedList.push([paired[i], paired[i + 1]])
       }
     }
     
     // Pair teams against each other
-    for (let i = 0; i < paired.length; i += 2) {
-      if (i + 1 < paired.length) {
+    for (let i = 0; i < pairedList.length; i += 2) {
+      if (i + 1 < pairedList.length) {
         roundMatches.push({
-          team1: paired[i],
-          team2: paired[i + 1],
+          team1: pairedList[i],
+          team2: pairedList[i + 1],
           completed: false,
           score1: 0,
           score2: 0,
         })
-      } else if (paired[i] && paired[i][0] && !paired[i][1]) {
-        // Single player with bye
-        roundMatches.push({
-          team1: paired[i],
-          team2: null,
-          completed: true,
-          score1: 0,
-          score2: 0,
-          isBye: true,
-        })
       }
+    }
+    
+    // --- Add BYE match if applicable ---
+    if (byePlayer) {
+      roundMatches.push({
+        team1: [byePlayer],
+        team2: null,
+        completed: true,
+        score1: 0,
+        score2: 0,
+        isBye: true,
+      })
     }
     
     rounds.push({
@@ -77,63 +116,19 @@ export function generateAmericanoRounds(players, totalRounds) {
 // GENERATE MEXICANO ROUNDS (Competitive Pairing)
 // ============================================================
 export function generateMexicanoRounds(players, totalRounds) {
-  const numPlayers = players.length
-  const isEven = numPlayers % 2 === 0
   const rounds = []
   
-  let workingPlayers = [...players]
-  
-  if (!isEven) {
-    workingPlayers.push({ id: 'bye', name: 'BYE', isBye: true })
-  }
-  
   // Round 1: Random pairings
-  const shuffled = [...workingPlayers].sort(() => Math.random() - 0.5)
-  let paired = []
-  
-  for (let i = 0; i < shuffled.length; i += 2) {
-    if (i + 1 < shuffled.length) {
-      const p1 = shuffled[i]
-      const p2 = shuffled[i + 1]
-      if (!p1.isBye && !p2.isBye) {
-        paired.push([p1, p2])
-      } else if (!p1.isBye) {
-        paired.push([p1, null])
-      } else if (!p2.isBye) {
-        paired.push([p2, null])
-      }
-    }
-  }
-  
-  const round1Matches = []
-  for (let i = 0; i < paired.length; i += 2) {
-    if (i + 1 < paired.length) {
-      round1Matches.push({
-        team1: paired[i],
-        team2: paired[i + 1],
-        completed: false,
-        score1: 0,
-        score2: 0,
-      })
-    } else if (paired[i] && paired[i][0] && !paired[i][1]) {
-      round1Matches.push({
-        team1: paired[i],
-        team2: null,
-        completed: true,
-        score1: 0,
-        score2: 0,
-        isBye: true,
-      })
-    }
-  }
+  const shuffled = [...players].sort(() => Math.random() - 0.5)
+  const round1Matches = generateMatchesFromPlayers(shuffled)
   
   rounds.push({
     round_number: 1,
     matches: round1Matches,
   })
   
-  // Rounds 2+: Pair based on standings (handled dynamically in dashboard)
-  // We'll generate placeholder matches and fill them later
+  // Rounds 2+: Generated dynamically in dashboard
+  // Placeholder matches will be filled when round is reached
   for (let round = 2; round <= totalRounds; round++) {
     rounds.push({
       round_number: round,
@@ -147,42 +142,91 @@ export function generateMexicanoRounds(players, totalRounds) {
 // ============================================================
 // GENERATE MEXICANO PAIRINGS FOR A ROUND (Based on Standings)
 // ============================================================
-export function generateMexicanoPairings(players, standings, roundNumber) {
+export function generateMexicanoPairings(players, standings, roundNumber, previousPairings = []) {
+  // Sort players by points (highest first)
   const sortedPlayers = [...players].sort((a, b) => {
     const aStats = standings[a.id] || { points: 0 }
     const bStats = standings[b.id] || { points: 0 }
     return bStats.points - aStats.points
   })
   
-  const paired = []
-  for (let i = 0; i < sortedPlayers.length; i += 2) {
-    if (i + 1 < sortedPlayers.length) {
-      paired.push([sortedPlayers[i], sortedPlayers[i + 1]])
-    } else {
-      paired.push([sortedPlayers[i], null])
+  // --- Handle odd number: give BYE to lowest ranked player ---
+  let byePlayer = null
+  let available = [...sortedPlayers]
+  if (available.length % 2 !== 0) {
+    byePlayer = available.pop() // Lowest ranked gets BYE
+  }
+  
+  // --- Pair players ---
+  let paired = []
+  let remaining = [...available]
+  
+  // Try to avoid exact same pairings from previous rounds
+  for (let i = 0; i < remaining.length; i++) {
+    const p1 = remaining[i]
+    if (paired.some(p => p.id === p1.id)) continue
+    
+    let found = false
+    for (let j = i + 1; j < remaining.length; j++) {
+      const p2 = remaining[j]
+      if (paired.some(p => p.id === p2.id)) continue
+      
+      // Check if this pair already played together
+      const pairKey = [p1.id, p2.id].sort().join('-')
+      const alreadyPaired = previousPairings.some(prev => 
+        prev.includes(p1.id) && prev.includes(p2.id)
+      )
+      
+      if (!alreadyPaired) {
+        paired.push(p1, p2)
+        found = true
+        break
+      }
+    }
+    
+    // If all pairs were already together, pair with anyone
+    if (!found) {
+      for (let j = i + 1; j < remaining.length; j++) {
+        const p2 = remaining[j]
+        if (paired.some(p => p.id === p2.id)) continue
+        paired.push(p1, p2)
+        found = true
+        break
+      }
+    }
+  }
+  
+  // --- Create matches from paired players ---
+  const pairedList = []
+  for (let i = 0; i < paired.length; i += 2) {
+    if (i + 1 < paired.length) {
+      pairedList.push([paired[i], paired[i + 1]])
     }
   }
   
   const matches = []
-  for (let i = 0; i < paired.length; i += 2) {
-    if (i + 1 < paired.length) {
+  for (let i = 0; i < pairedList.length; i += 2) {
+    if (i + 1 < pairedList.length) {
       matches.push({
-        team1: paired[i],
-        team2: paired[i + 1],
+        team1: pairedList[i],
+        team2: pairedList[i + 1],
         completed: false,
         score1: 0,
         score2: 0,
       })
-    } else if (paired[i] && paired[i][0] && !paired[i][1]) {
-      matches.push({
-        team1: paired[i],
-        team2: null,
-        completed: true,
-        score1: 0,
-        score2: 0,
-        isBye: true,
-      })
     }
+  }
+  
+  // --- Add BYE match if applicable ---
+  if (byePlayer) {
+    matches.push({
+      team1: [byePlayer],
+      team2: null,
+      completed: true,
+      score1: 0,
+      score2: 0,
+      isBye: true,
+    })
   }
   
   return matches
@@ -193,43 +237,48 @@ export function generateMexicanoPairings(players, standings, roundNumber) {
 // ============================================================
 export function generateSinglesRounds(players, totalRounds) {
   const numPlayers = players.length
-  const isEven = numPlayers % 2 === 0
   const rounds = []
   
   let workingPlayers = [...players]
   
-  if (!isEven) {
-    workingPlayers.push({ id: 'bye', name: 'BYE', isBye: true })
-  }
-  
-  const n = workingPlayers.length
-  
   for (let round = 1; round <= totalRounds; round++) {
-    const roundMatches = []
-    const half = n / 2
+    let roundMatches = []
+    let available = [...workingPlayers]
     
-    for (let i = 0; i < half; i++) {
-      const p1 = workingPlayers[i]
-      const p2 = workingPlayers[n - 1 - i]
-      
-      if (p1 && p2 && !p1.isBye && !p2.isBye) {
-        roundMatches.push({
-          team1: [p1],
-          team2: [p2],
-          completed: false,
-          score1: 0,
-          score2: 0,
-        })
-      } else if (p1 && !p1.isBye) {
-        roundMatches.push({
-          team1: [p1],
-          team2: null,
-          completed: true,
-          score1: 0,
-          score2: 0,
-          isBye: true,
-        })
+    // --- Handle odd number: give BYE to one player ---
+    let byePlayer = null
+    if (available.length % 2 !== 0) {
+      byePlayer = available.pop()
+    }
+    
+    // --- Pair remaining players ---
+    const paired = []
+    for (let i = 0; i < available.length; i += 2) {
+      if (i + 1 < available.length) {
+        paired.push([available[i], available[i + 1]])
       }
+    }
+    
+    for (const pair of paired) {
+      roundMatches.push({
+        team1: [pair[0]],
+        team2: [pair[1]],
+        completed: false,
+        score1: 0,
+        score2: 0,
+      })
+    }
+    
+    // --- Add BYE match if applicable ---
+    if (byePlayer) {
+      roundMatches.push({
+        team1: [byePlayer],
+        team2: null,
+        completed: true,
+        score1: 0,
+        score2: 0,
+        isBye: true,
+      })
     }
     
     rounds.push({
@@ -237,7 +286,7 @@ export function generateSinglesRounds(players, totalRounds) {
       matches: roundMatches,
     })
     
-    // Rotate players for next round
+    // Rotate players for next round (circle method)
     const last = workingPlayers.pop()
     workingPlayers.splice(1, 0, last)
   }
@@ -250,26 +299,25 @@ export function generateSinglesRounds(players, totalRounds) {
 // ============================================================
 export function generateFixedPartnerRounds(teams, totalRounds) {
   const numTeams = teams.length
-  const isEven = numTeams % 2 === 0
   const rounds = []
   
   let workingTeams = [...teams]
   
-  if (!isEven) {
-    workingTeams.push({ id: 'bye', name: 'BYE', isBye: true })
-  }
-  
-  const n = workingTeams.length
-  
   for (let round = 1; round <= totalRounds; round++) {
-    const roundMatches = []
-    const half = n / 2
+    let roundMatches = []
+    let available = [...workingTeams]
     
-    for (let i = 0; i < half; i++) {
-      const t1 = workingTeams[i]
-      const t2 = workingTeams[n - 1 - i]
-      
-      if (t1 && t2 && !t1.isBye && !t2.isBye) {
+    // --- Handle odd number: give BYE to one team ---
+    let byeTeam = null
+    if (available.length % 2 !== 0) {
+      byeTeam = available.pop()
+    }
+    
+    // --- Pair remaining teams ---
+    for (let i = 0; i < available.length; i += 2) {
+      if (i + 1 < available.length) {
+        const t1 = available[i]
+        const t2 = available[i + 1]
         roundMatches.push({
           team1: [t1.player1, t1.player2],
           team2: [t2.player1, t2.player2],
@@ -277,16 +325,19 @@ export function generateFixedPartnerRounds(teams, totalRounds) {
           score1: 0,
           score2: 0,
         })
-      } else if (t1 && !t1.isBye) {
-        roundMatches.push({
-          team1: [t1.player1, t1.player2],
-          team2: null,
-          completed: true,
-          score1: 0,
-          score2: 0,
-          isBye: true,
-        })
       }
+    }
+    
+    // --- Add BYE match if applicable ---
+    if (byeTeam) {
+      roundMatches.push({
+        team1: [byeTeam.player1, byeTeam.player2],
+        team2: null,
+        completed: true,
+        score1: 0,
+        score2: 0,
+        isBye: true,
+      })
     }
     
     rounds.push({
@@ -294,7 +345,7 @@ export function generateFixedPartnerRounds(teams, totalRounds) {
       matches: roundMatches,
     })
     
-    // Rotate teams for next round
+    // Rotate teams for next round (circle method)
     const last = workingTeams.pop()
     workingTeams.splice(1, 0, last)
   }
@@ -303,25 +354,92 @@ export function generateFixedPartnerRounds(teams, totalRounds) {
 }
 
 // ============================================================
+// HELPER: Generate matches from players (for round 1)
+// ============================================================
+function generateMatchesFromPlayers(players) {
+  let available = [...players]
+  let byePlayer = null
+  const matches = []
+  
+  // Handle odd number
+  if (available.length % 2 !== 0) {
+    byePlayer = available.pop()
+  }
+  
+  // Pair players
+  for (let i = 0; i < available.length; i += 2) {
+    if (i + 1 < available.length) {
+      matches.push({
+        team1: [available[i]],
+        team2: [available[i + 1]],
+        completed: false,
+        score1: 0,
+        score2: 0,
+      })
+    }
+  }
+  
+  // Add BYE
+  if (byePlayer) {
+    matches.push({
+      team1: [byePlayer],
+      team2: null,
+      completed: true,
+      score1: 0,
+      score2: 0,
+      isBye: true,
+    })
+  }
+  
+  return matches
+}
+
+// ============================================================
 // CALCULATE TOURNAMENT STANDINGS
 // ============================================================
 export function calculateTournamentStandings(players, rounds, standingBy) {
   const standings = {}
   
+  // Initialize standings for all players
   players.forEach(p => {
-    standings[p.id] = {
-      id: p.id,
-      name: p.name,
-      W: 0,
-      L: 0,
-      T: 0,
-      Pts: 0,
-      games_won: 0,
-      games_lost: 0,
-      matches_played: 0,
+    // For Fixed Partner, p may be a team object with player1/player2
+    if (p.player1 && p.player2) {
+      // Team: add both players individually
+      const p1 = p.player1
+      const p2 = p.player2
+      if (p1 && !standings[p1.id]) {
+        standings[p1.id] = {
+          id: p1.id,
+          name: p1.name,
+          W: 0, L: 0, T: 0, Pts: 0,
+          games_won: 0, games_lost: 0,
+          matches_played: 0,
+        }
+      }
+      if (p2 && !standings[p2.id]) {
+        standings[p2.id] = {
+          id: p2.id,
+          name: p2.name,
+          W: 0, L: 0, T: 0, Pts: 0,
+          games_won: 0, games_lost: 0,
+          matches_played: 0,
+        }
+      }
+    } else {
+      // Regular player
+      if (!standings[p.id]) {
+        standings[p.id] = {
+          id: p.id,
+          name: p.name,
+          W: 0, L: 0, T: 0, Pts: 0,
+          games_won: 0, games_lost: 0,
+          matches_played: 0,
+        }
+      }
     }
   })
   
+  // Process all completed matches
   rounds.forEach(round => {
     round.matches.forEach(match => {
       if (!match.completed || match.isBye) return
@@ -403,10 +521,7 @@ export function isTournamentComplete(rounds, totalRounds) {
   
   for (let i = 0; i < totalRounds; i++) {
     const round = rounds[i]
-    if (!round) return false
-    
-    // Skip empty rounds (Mexicano rounds that haven't been generated yet)
-    if (round.matches.length === 0) return false
+    if (!round || round.matches.length === 0) return false
     
     const allCompleted = round.matches.every(m => m.completed || m.isBye)
     if (!allCompleted) return false
