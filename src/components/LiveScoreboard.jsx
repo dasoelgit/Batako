@@ -240,11 +240,12 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
-      // Increment deuce count when both players are at deuce and points are equal
+      // Increment deuce count every time the score becomes tied at 3-3 or later.
+      // (A single point always breaks a prior tie, so checking "was also tied"
+      // can never be true — that was the bug that froze deuce_count at 0.)
       const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3 && newPoints1 === newPoints2
-      const wasAtDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
-      
-      if (isAtDeuce && wasAtDeuce) {
+
+      if (isAtDeuce) {
         newDeuceCount += 1
       }
 
