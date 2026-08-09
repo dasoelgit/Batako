@@ -60,11 +60,12 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   }
 
   const getMatchLabel = (team) => {
-    if (!team) return 'BYE'
-    const players = team.filter(p => p && !p.isBye)
-    if (players.length === 0) return 'BYE'
-    return players.map(p => p.name).join(' / ')
-  }
+  if (!team) return 'BYE'
+  const players = team.filter(p => p && !p.isBye)
+  if (players.length === 0) return 'BYE'
+  if (players.length === 1) return players[0].name
+  return players.map(p => p.name).join(' / ')
+}
 
   const handleMatchClick = (matchIndex) => {
     const round = tournament.rounds.find(r => r.round_number === selectedRound)
