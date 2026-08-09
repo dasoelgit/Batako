@@ -537,7 +537,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
-        <div className="brand-title">🎾 TENNIS SCORE</div>
+        <div className="brand-title">BATAKO TENNIS CLUB</div>
       </div>
 
       <div className="tabs">
