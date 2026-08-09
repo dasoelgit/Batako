@@ -49,21 +49,6 @@ export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
 }
 
 // ============================================================
-// CHECK IF SUDDEN DEATH POINT
-// ============================================================
-export function isSuddenDeathPoint(points1, points2, gameScoring, deuceCount) {
-  if (gameScoring === '1deuce') {
-    // At 4-4 (after first deuce), sudden death
-    return points1 >= 4 && points2 >= 4 && deuceCount >= 1
-  }
-  if (gameScoring === '2deuces') {
-    // At 5-5 (after two deuces), sudden death
-    return points1 >= 5 && points2 >= 5 && deuceCount >= 2
-  }
-  return false
-}
-
-// ============================================================
 // TIEBREAK WINNER
 // ============================================================
 export function checkTiebreakWinner(score1, score2, tiebreakFormat) {
