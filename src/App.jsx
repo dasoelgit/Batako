@@ -6,6 +6,9 @@ import MatchSetup from './components/MatchSetup'
 import LiveConfig from './components/LiveConfig'
 import LiveScoreboard from './components/LiveScoreboard'
 import LiveScoreboardLandscape from './components/LiveScoreboardLandscape'
+import TournamentList from './components/Tournament/TournamentList'
+import TournamentSetup from './components/Tournament/TournamentSetup'
+import TournamentDashboard from './components/Tournament/TournamentDashboard'
 
 // ============================================================
 // LEADERBOARD
@@ -13,7 +16,14 @@ import LiveScoreboardLandscape from './components/LiveScoreboardLandscape'
 function buildStandings(matches) {
   const stats = new Map()
   const ensure = (p) => {
-    if (!stats.has(p.id)) stats.set(p.id, { name: p.name, wins: 0, losses: 0, draws: 0, sets_won: 0, sets_lost: 0 })
+    if (!stats.has(p.id)) stats.set(p.id, {
+      name: p.name,
+      wins: 0,
+      losses: 0,
+      draws: 0,
+      points: 0,
+      matches: 0,
+    })
     return stats.get(p.id)
   }
 
@@ -22,37 +32,41 @@ function buildStandings(matches) {
 
     const isDraw = m.draw === true
 
+    // Team 1 players
     for (const p of m.team1_players) {
       const s = ensure(p)
-      if (!isDraw && m.winner === 1) s.wins += 1
-      else if (!isDraw && m.winner === 2) s.losses += 1
-      else if (isDraw) s.draws += 1
-    }
-    for (const p of m.team2_players) {
-      const s = ensure(p)
-      if (!isDraw && m.winner === 2) s.wins += 1
-      else if (!isDraw && m.winner === 1) s.losses += 1
-      else if (isDraw) s.draws += 1
+      s.matches += 1
+      if (isDraw) {
+        s.draws += 1
+        s.points += 2
+      } else if (m.winner === 1) {
+        s.wins += 1
+        s.points += 3
+      } else {
+        s.losses += 1
+        s.points += 1
+      }
     }
 
-    for (const set of m.sets || []) {
-      if (set.winner === 1) {
-        for (const p of m.team1_players) ensure(p).sets_won += 1
-        for (const p of m.team2_players) ensure(p).sets_lost += 1
-      } else if (set.winner === 2) {
-        for (const p of m.team2_players) ensure(p).sets_won += 1
-        for (const p of m.team1_players) ensure(p).sets_lost += 1
+    // Team 2 players
+    for (const p of m.team2_players) {
+      const s = ensure(p)
+      s.matches += 1
+      if (isDraw) {
+        s.draws += 1
+        s.points += 2
+      } else if (m.winner === 2) {
+        s.wins += 1
+        s.points += 3
+      } else {
+        s.losses += 1
+        s.points += 1
       }
     }
   }
 
-  const rows = Array.from(stats.values()).map((s) => ({
-    ...s,
-    matches: s.wins + s.losses + s.draws,
-    points: s.wins * 3 + s.draws * 1,
-  }))
-
-  rows.sort((a, b) => b.points - a.points || b.sets_won - b.sets_lost || a.name.localeCompare(b.name))
+  const rows = Array.from(stats.values())
+  rows.sort((a, b) => b.points - a.points || (b.wins - a.wins) || a.name.localeCompare(b.name))
   return rows
 }
 
@@ -63,7 +77,7 @@ function Leaderboard({ refreshKey }) {
     let active = true
     supabase
       .from('tennis_matches')
-      .select('winner, draw, team1_players, team2_players, status, sets')
+      .select('winner, draw, team1_players, team2_players, status, sets, is_tournament_match')
       .eq('status', 'completed')
       .then(({ data }) => {
         if (active && data) setRows(buildStandings(data))
@@ -125,7 +139,7 @@ function Leaderboard({ refreshKey }) {
         borderTop: '1px solid var(--border-light)',
         paddingTop: '8px',
       }}>
-        3 pts Win · 1 pt Draw · 0 pts Loss
+        3 pts Win · 2 pts Draw · 1 pt Loss
       </div>
     </div>
   )
@@ -158,6 +172,7 @@ function History({ refreshKey }) {
     <div className="card">
       {matches.map((m) => {
         const isDraw = m.draw === true
+        const isTournament = m.is_tournament_match === true
         return (
           <div key={m.id} className="history-row">
             <div className="history-teams">
@@ -185,6 +200,16 @@ function History({ refreshKey }) {
                   {s.tiebreak && ` (${s.tiebreak})`}
                 </span>
               ))}
+              {isTournament && (
+                <span style={{
+                  fontSize: '10px',
+                  marginLeft: '6px',
+                  color: '#d4a843',
+                  fontWeight: '600',
+                }}>
+                  🏆
+                </span>
+              )}
             </div>
             <div className="history-games" style={{ marginTop: 4 }}>
               {formatJakartaTime(m.completed_at)}
@@ -361,12 +386,17 @@ export default function App() {
   const [players, setPlayers] = useState([])
 
   // Tap to reveal admin
+  const [showAdmin, setShowAdmin] = useState(false)
   const [tapCount, setTapCount] = useState(0)
   const tapTimer = useRef(null)
 
   // Live Config state
   const [showLiveConfig, setShowLiveConfig] = useState(false)
   const [liveTeamData, setLiveTeamData] = useState(null)
+
+  // Tournament state
+  const [tournamentView, setTournamentView] = useState('list') // 'list' | 'setup' | 'dashboard'
+  const [selectedTournamentId, setSelectedTournamentId] = useState(null)
 
   const refreshPlayers = async () => {
     const { data } = await supabase.from('tennis_players').select('id, name').order('name')
@@ -432,24 +462,49 @@ export default function App() {
     setActiveMatch(match)
   }
 
-  // ===== TAP TO GO TO ADMIN =====
+  // ===== TAP TO REVEAL ADMIN (Page, not tab) =====
   const handleTitleTap = () => {
     setTapCount(prev => prev + 1)
-    
+
     if (tapTimer.current) clearTimeout(tapTimer.current)
     tapTimer.current = setTimeout(() => {
       setTapCount(0)
     }, 2000)
-    
+
     if (tapCount + 1 >= 5) {
       setTapCount(0)
-      setTab('admin')
+      setShowAdmin(true)
     }
   }
 
-  // ===== BACK FROM ADMIN =====
   const handleAdminBack = () => {
-    setTab('live')
+    setShowAdmin(false)
+  }
+
+  // ===== TOURNAMENT HANDLERS =====
+  const handleSelectTournament = (id) => {
+    setSelectedTournamentId(id)
+    setTournamentView('dashboard')
+  }
+
+  const handleCreateNewTournament = () => {
+    setTournamentView('setup')
+  }
+
+  const handleTournamentBack = () => {
+    setTournamentView('list')
+    setSelectedTournamentId(null)
+  }
+
+  const handleTournamentCreated = (tournament) => {
+    setSelectedTournamentId(tournament.id)
+    setTournamentView('dashboard')
+  }
+
+  const handleTournamentComplete = () => {
+    setTournamentView('list')
+    setSelectedTournamentId(null)
+    setRefreshKey(k => k + 1)
   }
 
   if (isLandscape && activeMatch) {
@@ -460,6 +515,22 @@ export default function App() {
         onMatchUpdated={(updated) => setActiveMatch(updated)}
         onExit={() => setIsLandscape(false)}
       />
+    )
+  }
+
+  // Admin page (overrides everything, no tab change)
+  if (showAdmin) {
+    return (
+      <div className="app-shell">
+        <div className="brand">
+          <div className="brand-title">🎾 TENNIS SCORE</div>
+        </div>
+        <AdminPanel
+          players={players}
+          refreshPlayers={refreshPlayers}
+          onBack={handleAdminBack}
+        />
+      </div>
     )
   }
 
@@ -488,14 +559,12 @@ export default function App() {
         >
           History
         </button>
-        {tab === 'admin' && (
-          <button
-            className="tab active"
-            onClick={() => setTab('admin')}
-          >
-            ⚙️
-          </button>
-        )}
+        <button
+          className={`tab ${tab === 'tournament' ? 'active' : ''}`}
+          onClick={() => setTab('tournament')}
+        >
+          🏆
+        </button>
       </div>
 
       {tab === 'live' && (
@@ -525,8 +594,30 @@ export default function App() {
       )}
 
       {tab === 'leaderboard' && <Leaderboard refreshKey={refreshKey} />}
+
       {tab === 'history' && <History refreshKey={refreshKey} />}
-      {tab === 'admin' && <AdminPanel players={players} refreshPlayers={refreshPlayers} onBack={handleAdminBack} />}
+
+      {tab === 'tournament' && (
+        tournamentView === 'list' ? (
+          <TournamentList
+            onSelectTournament={handleSelectTournament}
+            onCreateNew={handleCreateNewTournament}
+            onBack={handleTournamentBack}
+          />
+        ) : tournamentView === 'setup' ? (
+          <TournamentSetup
+            players={players}
+            onTournamentCreated={handleTournamentCreated}
+            onBack={handleTournamentBack}
+          />
+        ) : tournamentView === 'dashboard' && selectedTournamentId ? (
+          <TournamentDashboard
+            tournamentId={selectedTournamentId}
+            onTournamentComplete={handleTournamentComplete}
+            onBack={handleTournamentBack}
+          />
+        ) : null
+      )}
     </div>
   )
 }
