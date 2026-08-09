@@ -7,10 +7,9 @@ import {
   checkTiebreakWinner,
   checkSetResult,
   checkMatchResult,
+  isSuddenDeathPoint,
 } from '../utils/tennisRules'
 import { getServeSide, getNextServer } from '../utils/tennisHelpers'
-
-const pad2 = (n) => String(n).padStart(2, '0')
 
 // ============================================================
 // SET COMPLETE PROMPT (Landscape)
@@ -146,6 +145,9 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   const matchWinner = checkMatchResult(sets, match_config)
   const isMatchComplete = matchWinner !== null && localMatch.status === 'active'
 
+  // Check if Sudden Death Point
+  const isSuddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+
   // Snapshot
   const snapshot = () => ({
     team1_points: localMatch.team1_points,
@@ -184,7 +186,7 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   }
 
   // ============================================================
-  // ADD POINT — FIXED
+  // ADD POINT
   // ============================================================
   const addPoint = async (team) => {
     if (busy) {
@@ -226,13 +228,12 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
-      // Increment deuce count for 2deuces mode
-      if (game_scoring === '2deuces') {
-        const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3
-        const wasAtDeuce = team1_points >= 3 && team2_points >= 3
-        if (wasAtDeuce && isAtDeuce && team1_points === team2_points) {
-          newDeuceCount += 1
-        }
+      // Increment deuce count when both players are at deuce and points are equal
+      const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3 && newPoints1 === newPoints2
+      const wasAtDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
+      
+      if (isAtDeuce && wasAtDeuce) {
+        newDeuceCount += 1
       }
 
       const gameWinner = checkGameWinner(newPoints1, newPoints2, game_scoring, newDeuceCount)
@@ -542,7 +543,7 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   const totalSets = match_config === 'single' ? 1 : match_config === 'best_of_3' ? 3 : 5
 
   // ============================================================
-  // POINT DISPLAY — FIXED
+  // POINT DISPLAY
   // ============================================================
   const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
   const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
@@ -564,6 +565,8 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
     pointLabel1 = '40'
     pointLabel2 = 'Ad'
     centerLabel = 'Advantage'
+  } else if (isSuddenDeath) {
+    centerLabel = '🔥 Sudden Death Point!'
   }
 
   const team1Name = teamLabel(team1_players).split('/')[0] || 'Team A'
@@ -605,7 +608,9 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
             fontWeight: '600',
             border: '1px solid var(--border)',
           }}>
-            {game_scoring}
+            {game_scoring === 'no_deuce' ? 'No Deuce' : 
+             game_scoring === '1deuce' ? '1 Deuce' :
+             game_scoring === '2deuces' ? '2 Deuces' : 'Standard'}
           </span>
         </div>
 
@@ -749,7 +754,11 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
         <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
           {team1Name}
         </span>
-        <span style={{ fontWeight: 'bold', color: 'var(--gold)', fontSize: 'clamp(14px, 2vh, 20px)' }}>
+        <span style={{ 
+          fontWeight: 'bold', 
+          color: isSuddenDeath ? '#c0392b' : 'var(--gold)', 
+          fontSize: 'clamp(14px, 2vh, 20px)',
+        }}>
           {centerLabel === 'vs' ? `${team1_games} - ${team2_games}` : centerLabel}
         </span>
         <span style={{ fontWeight: '600', color: 'var(--text-primary)' }}>
