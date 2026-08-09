@@ -6,6 +6,7 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
   const [tournaments, setTournaments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
+  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     loadTournaments()
@@ -37,6 +38,36 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
 
   const getTypeLabel = (type) => {
     return type === 'americano' ? '🇺🇸 Americano' : '🇲🇽 Mexicano'
+  }
+
+  const handleDelete = async (id, name) => {
+    if (!confirm(`Delete "${name}"? This will also delete all matches in this tournament.`)) return
+
+    setDeletingId(id)
+    try {
+      // First delete tournament_matches links
+      const { error: linkError } = await supabase
+        .from('tennis_tournament_matches')
+        .delete()
+        .eq('tournament_id', id)
+
+      if (linkError) throw linkError
+
+      // Then delete the tournament
+      const { error: deleteError } = await supabase
+        .from('tennis_tournaments')
+        .delete()
+        .eq('id', id)
+
+      if (deleteError) throw deleteError
+
+      // Reload list
+      await loadTournaments()
+    } catch (err) {
+      alert('Error deleting tournament: ' + err.message)
+    } finally {
+      setDeletingId(null)
+    }
   }
 
   if (loading) return <div className="loading">Loading tournaments...</div>
@@ -132,9 +163,11 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#f8faf8'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
-              onClick={() => onSelectTournament(t.id)}
             >
-              <div>
+              <div
+                style={{ flex: 1 }}
+                onClick={() => onSelectTournament(t.id)}
+              >
                 <div style={{ fontWeight: '600' }}>
                   {t.name}
                 </div>
@@ -145,16 +178,35 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
                   Started: {formatDate(t.created_at)}
                 </div>
               </div>
-              <button
-                className="btn-secondary"
-                style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-                onClick={(e) => {
-                  e.stopPropagation()
-                  onSelectTournament(t.id)
-                }}
-              >
-                Continue →
-              </button>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    onSelectTournament(t.id)
+                  }}
+                >
+                  Continue →
+                </button>
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#c0392b',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(t.id, t.name)
+                  }}
+                  disabled={deletingId === t.id}
+                >
+                  {deletingId === t.id ? '...' : '✕'}
+                </button>
+              </div>
             </div>
           ))}
         </>
@@ -187,7 +239,10 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
                 background: '#f8faf8',
               }}
             >
-              <div>
+              <div
+                style={{ flex: 1 }}
+                onClick={() => onSelectTournament(t.id)}
+              >
                 <div style={{ fontWeight: '600' }}>
                   {t.name}
                 </div>
@@ -198,13 +253,32 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
                   Completed: {formatDate(t.completed_at)}
                 </div>
               </div>
-              <button
-                className="btn-secondary"
-                style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-                onClick={() => onSelectTournament(t.id)}
-              >
-                View Results →
-              </button>
+              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
+                  onClick={() => onSelectTournament(t.id)}
+                >
+                  View Results →
+                </button>
+                <button
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    color: '#c0392b',
+                    fontSize: '16px',
+                    cursor: 'pointer',
+                    padding: '4px 8px',
+                  }}
+                  onClick={(e) => {
+                    e.stopPropagation()
+                    handleDelete(t.id, t.name)
+                  }}
+                  disabled={deletingId === t.id}
+                >
+                  {deletingId === t.id ? '...' : '✕'}
+                </button>
+              </div>
             </div>
           ))}
         </>
