@@ -275,7 +275,7 @@ function AdminPlayers({ players, refreshPlayers }) {
   )
 }
 
-function AdminPanel({ players, refreshPlayers }) {
+function AdminPanel({ players, refreshPlayers, onBack }) {
   const [authed, setAuthed] = useState(false)
   const [pin, setPin] = useState('')
   const [pinError, setPinError] = useState('')
@@ -283,6 +283,22 @@ function AdminPanel({ players, refreshPlayers }) {
   if (!authed) {
     return (
       <div className="card">
+        <button
+          onClick={onBack}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#6a7a6a',
+            fontSize: '14px',
+            cursor: 'pointer',
+            padding: '0 0 12px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          ← Back
+        </button>
         <span className="field-label">Admin PIN</span>
         <input
           type="text"
@@ -343,7 +359,6 @@ export default function App() {
   const [isLandscape, setIsLandscape] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [players, setPlayers] = useState([])
-  const [showAdmin, setShowAdmin] = useState(false)
 
   // Tap to reveal admin
   const [tapCount, setTapCount] = useState(0)
@@ -417,7 +432,7 @@ export default function App() {
     setActiveMatch(match)
   }
 
-  // ===== TAP TO REVEAL ADMIN =====
+  // ===== TAP TO GO TO ADMIN =====
   const handleTitleTap = () => {
     setTapCount(prev => prev + 1)
     
@@ -428,8 +443,13 @@ export default function App() {
     
     if (tapCount + 1 >= 5) {
       setTapCount(0)
-      setShowAdmin(true)
+      setTab('admin')
     }
+  }
+
+  // ===== BACK FROM ADMIN =====
+  const handleAdminBack = () => {
+    setTab('live')
   }
 
   if (isLandscape && activeMatch) {
@@ -468,9 +488,9 @@ export default function App() {
         >
           History
         </button>
-        {showAdmin && (
+        {tab === 'admin' && (
           <button
-            className={`tab ${tab === 'admin' ? 'active' : ''}`}
+            className="tab active"
             onClick={() => setTab('admin')}
           >
             ⚙️
@@ -506,7 +526,7 @@ export default function App() {
 
       {tab === 'leaderboard' && <Leaderboard refreshKey={refreshKey} />}
       {tab === 'history' && <History refreshKey={refreshKey} />}
-      {tab === 'admin' && <AdminPanel players={players} refreshPlayers={refreshPlayers} />}
+      {tab === 'admin' && <AdminPanel players={players} refreshPlayers={refreshPlayers} onBack={handleAdminBack} />}
     </div>
   )
 }
