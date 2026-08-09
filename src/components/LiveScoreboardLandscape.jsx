@@ -541,17 +541,18 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   // ============================================================
   // POINT DISPLAY
   // ============================================================
-  let pointLabel1 = getPointLabel(team1_points)
-  let pointLabel2 = getPointLabel(team2_points)
+  let pointLabel1 = getPointLabel(team1_points, team2_points)
+  let pointLabel2 = getPointLabel(team2_points, team1_points)
   let centerLabel = 'vs'
 
   if (suddenDeath) {
     centerLabel = '🔥 Sudden Death Point!'
-  } else if (advantage) {
-    centerLabel = 'Ad'
   } else if (deuce) {
     centerLabel = 'Deuce'
   }
+  // Advantage is intentionally left as 'vs' here (which falls back to the
+  // games score below) — which side is ahead is already shown as "Ad"
+  // next to their point score.
 
   const team1Name = teamLabel(team1_players).split('/')[0] || 'Team A'
   const team2Name = teamLabel(team2_players).split('/')[0] || 'Team B'
