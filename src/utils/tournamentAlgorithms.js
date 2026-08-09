@@ -172,7 +172,6 @@ export function generateMexicanoPairings(players, standings, roundNumber, previo
       if (paired.some(p => p.id === p2.id)) continue
       
       // Check if this pair already played together
-      const pairKey = [p1.id, p2.id].sort().join('-')
       const alreadyPaired = previousPairings.some(prev => 
         prev.includes(p1.id) && prev.includes(p2.id)
       )
@@ -395,7 +394,7 @@ function generateMatchesFromPlayers(players) {
 }
 
 // ============================================================
-// CALCULATE TOURNAMENT STANDINGS
+// CALCULATE TOURNAMENT STANDINGS — FIXED for Fixed Partner
 // ============================================================
 export function calculateTournamentStandings(players, rounds, standingBy) {
   const standings = {}
