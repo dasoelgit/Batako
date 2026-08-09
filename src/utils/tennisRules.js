@@ -1,10 +1,10 @@
 // src/utils/tennisRules.js
-// Fully customizable tennis scoring
+// Fully customizable tennis scoring — CORRECT VERSION
 
 export const POINT_NAMES = ['0', '15', '30', '40']
 
 // ============================================================
-// GAME WINNER — FINAL CORRECT VERSION
+// GAME WINNER — CORRECT
 // ============================================================
 export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
   switch (gameScoring) {
@@ -16,22 +16,24 @@ export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
       return null
 
     case '1deuce':
-      // Normal win by 2, but if it goes to 4-4 (second deuce), sudden death
+      // Normal win by 2, but at 4-4 (deuceCount >= 2) sudden death
+      // Winning scores: 5-3 or 5-4
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
-      // At 4-4 (deuceCount >= 1 means we've had one deuce already), sudden death
-      if (points1 >= 4 && points2 >= 4 && deuceCount >= 1) {
+      // Sudden death at 4-4
+      if (points1 >= 4 && points2 >= 4 && deuceCount >= 2) {
         if (points1 > points2) return 1
         if (points2 > points1) return 2
       }
       return null
 
     case '2deuces':
-      // Normal win by 2, but if it goes to 5-5 (third deuce), sudden death
+      // Normal win by 2, but at 5-5 (deuceCount >= 3) sudden death
+      // Winning scores: 6-4 or 6-5
       if (points1 >= 4 && points1 - points2 >= 2) return 1
       if (points2 >= 4 && points2 - points1 >= 2) return 2
-      // At 5-5 (deuceCount >= 2 means we've had two deuces already), sudden death
-      if (points1 >= 5 && points2 >= 5 && deuceCount >= 2) {
+      // Sudden death at 5-5
+      if (points1 >= 5 && points2 >= 5 && deuceCount >= 3) {
         if (points1 > points2) return 1
         if (points2 > points1) return 2
       }
@@ -46,6 +48,74 @@ export function checkGameWinner(points1, points2, gameScoring, deuceCount) {
     default:
       return null
   }
+}
+
+// ============================================================
+// CHECK IF SUDDEN DEATH POINT
+// ============================================================
+export function isSuddenDeathPoint(points1, points2, gameScoring, deuceCount) {
+  if (gameScoring === 'no_deuce') {
+    // At 3-3, next point wins
+    return points1 >= 3 && points2 >= 3 && points1 === points2
+  }
+  if (gameScoring === '1deuce') {
+    // At 4-4, next point wins
+    return points1 >= 4 && points2 >= 4 && deuceCount >= 2
+  }
+  if (gameScoring === '2deuces') {
+    // At 5-5, next point wins
+    return points1 >= 5 && points2 >= 5 && deuceCount >= 3
+  }
+  return false
+}
+
+// ============================================================
+// CHECK IF DEUCE
+// ============================================================
+export function isDeuce(points1, points2, gameScoring) {
+  // No Deuce mode never shows deuce
+  if (gameScoring === 'no_deuce') return false
+  
+  // For 1deuce and 2deuces and standard, deuce at 3-3 and 4-4 etc
+  return points1 >= 3 && points2 >= 3 && points1 === points2
+}
+
+// ============================================================
+// CHECK IF ADVANTAGE
+// ============================================================
+export function isAdvantage(points1, points2, gameScoring, deuceCount) {
+  // No Deuce mode never shows advantage
+  if (gameScoring === 'no_deuce') return false
+  
+  // For 1deuce: advantage at 4-3 (before sudden death at 4-4)
+  if (gameScoring === '1deuce') {
+    // Advantage only if we haven't reached sudden death yet
+    if (points1 >= 4 && points2 >= 4 && deuceCount >= 2) return false
+    if (points1 >= 3 && points2 >= 3 && points1 !== points2) {
+      return points1 === points2 + 1 || points2 === points1 + 1
+    }
+    return false
+  }
+  
+  // For 2deuces: advantage at 4-3 and 5-4 (before sudden death at 5-5)
+  if (gameScoring === '2deuces') {
+    // At 5-5 with deuceCount >= 3, it's sudden death, not advantage
+    if (points1 >= 5 && points2 >= 5 && deuceCount >= 3) return false
+    if (points1 >= 3 && points2 >= 3 && points1 !== points2) {
+      return points1 === points2 + 1 || points2 === points1 + 1
+    }
+    return false
+  }
+  
+  // Standard: advantage when points are 3-3 or higher and not equal
+  if (gameScoring === 'standard') {
+    if (points1 >= 3 && points2 >= 3 && points1 !== points2) {
+      return points1 === points2 + 1 || points2 === points1 + 1
+    }
+    return false
+  }
+  
+  return false
 }
 
 // ============================================================
@@ -120,19 +190,10 @@ export function checkMatchResult(sets, matchConfig) {
 // ============================================================
 // POINT DISPLAY
 // ============================================================
-export function getPointDisplay(points1, points2) {
+export function getPointLabel(points) {
   const labels = ['0', '15', '30', '40']
-  
-  if (points1 >= 3 && points2 >= 3) {
-    if (points1 === points2) return 'Deuce'
-    if (points1 === points2 + 1) return 'Ad'
-    if (points2 === points1 + 1) return 'Ad'
-  }
-  
-  const d1 = points1 > 3 ? String(points1) : labels[points1] || String(points1)
-  const d2 = points2 > 3 ? String(points2) : labels[points2] || String(points2)
-  
-  return `${d1}-${d2}`
+  if (points > 3) return String(points)
+  return labels[points] || String(points)
 }
 
 // ============================================================
@@ -161,19 +222,4 @@ export function getMatchConfigLabel(type) {
     case 'best_of_5': return 'Best of 5 Sets'
     default: return 'Unknown'
   }
-}
-
-// ============================================================
-// CHECK IF SUDDEN DEATH POINT
-// ============================================================
-export function isSuddenDeathPoint(points1, points2, gameScoring, deuceCount) {
-  if (gameScoring === '1deuce') {
-    // At 4-4 (after first deuce), sudden death
-    return points1 >= 4 && points2 >= 4 && deuceCount >= 1
-  }
-  if (gameScoring === '2deuces') {
-    // At 5-5 (after two deuces), sudden death
-    return points1 >= 5 && points2 >= 5 && deuceCount >= 2
-  }
-  return false
 }
