@@ -51,13 +51,15 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
   }
 
   const getMaxRounds = () => {
-    const n = selectedPlayers.length
     if (tournamentType === 'singles') {
-      return n - 1
+      const n = selectedPlayers.length
+      return n > 1 ? n - 1 : 0
     }
     if (tournamentType === 'fixed_partner') {
-      return fixedTeams.length - 1
+      const n = fixedTeams.length
+      return n > 1 ? n - 1 : 0
     }
+    const n = selectedPlayers.length
     if (n % 2 === 0) return n - 1
     return n
   }
@@ -74,27 +76,36 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
     return `${typeLabel} Tournament - ${date}`
   }
 
-  const addFixedTeam = () => {
+  const autoCreateTeams = () => {
     if (selectedPlayers.length < 2) {
-      setError('Need at least 2 players to form a team.')
+      setError('Need at least 2 players to create teams.')
       return
     }
-    // Take first 2 selected players that aren't already in a team
-    const available = selectedPlayers.filter(p => 
-      !fixedTeams.some(t => t.player1.id === p.id || t.player2?.id === p.id)
-    )
-    if (available.length < 2) {
-      setError('Not enough available players. Select more players or clear existing teams.')
+    
+    if (selectedPlayers.length % 2 !== 0) {
+      setError('Need an even number of players for Fixed Partner. (4, 6, 8)')
       return
     }
-    setFixedTeams([...fixedTeams, { player1: available[0], player2: available[1] }])
+
+    const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5)
+    const teams = []
+    for (let i = 0; i < shuffled.length; i += 2) {
+      if (i + 1 < shuffled.length) {
+        teams.push({ 
+          player1: shuffled[i], 
+          player2: shuffled[i + 1] 
+        })
+      }
+    }
+    setFixedTeams(teams)
+    setError('')
   }
 
-  const removeFixedTeam = (index) => {
+  const removeTeam = (index) => {
     setFixedTeams(fixedTeams.filter((_, i) => i !== index))
   }
 
-  const clearFixedTeams = () => {
+  const clearTeams = () => {
     setFixedTeams([])
   }
 
@@ -113,11 +124,6 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
       if (tournamentType === 'fixed_partner') {
         if (fixedTeams.length < 2) {
           setError('Need at least 2 teams for Fixed Partner.')
-          setBusy(false)
-          return
-        }
-        if (fixedTeams.some(t => !t.player2)) {
-          setError('All teams must have 2 players.')
           setBusy(false)
           return
         }
@@ -146,7 +152,13 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
         playersList = selectedPlayers
         rounds = generateSinglesRounds(selectedPlayers, numRounds)
       } else if (tournamentType === 'fixed_partner') {
-        playersList = fixedTeams
+        playersList = fixedTeams.map((team, index) => ({
+          id: `team_${index}`,
+          name: `${team.player1.name} / ${team.player2.name}`,
+          player1: team.player1,
+          player2: team.player2,
+          isTeam: true
+        }))
         rounds = generateFixedPartnerRounds(fixedTeams, numRounds)
       } else if (tournamentType === 'americano') {
         playersList = selectedPlayers
@@ -203,9 +215,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
     transition: 'all 0.2s ease',
   })
 
-  const isSingles = tournamentType === 'singles'
   const isFixedPartner = tournamentType === 'fixed_partner'
-  const isAmericanoMexicano = tournamentType === 'americano' || tournamentType === 'mexicano'
 
   return (
     <div style={{
@@ -287,6 +297,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
             onClick={() => {
               setTournamentType(type.id)
               setFixedTeams([])
+              setSelectedPlayers([])
             }}
           >
             <div style={{ fontSize: '18px' }}>{type.label}</div>
@@ -296,12 +307,9 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
       </div>
 
       {/* Player Selection */}
-      <span style={labelStyle}>
-        {isFixedPartner ? 'Select Players for Teams' : `Select Players (${selectedPlayers.length} selected)`}
-      </span>
-
       {!isFixedPartner && (
         <>
+          <span style={labelStyle}>Select Players ({selectedPlayers.length} selected)</span>
           <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
             <button
               className="btn-secondary"
@@ -363,33 +371,11 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
 
       {/* Fixed Partner Team Builder */}
       {isFixedPartner && (
-        <div style={{ marginBottom: '16px' }}>
+        <>
+          <span style={labelStyle}>Create Teams ({fixedTeams.length} teams)</span>
+          
           <div style={{
-            display: 'flex',
-            gap: '6px',
-            marginBottom: '8px',
-            flexWrap: 'wrap',
-          }}>
-            <button
-              className="btn-primary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={addFixedTeam}
-              disabled={selectedPlayers.length < 2}
-            >
-              + Add Team
-            </button>
-            <button
-              className="btn-secondary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={clearFixedTeams}
-            >
-              Clear Teams
-            </button>
-          </div>
-
-          {/* Player pool for teams */}
-          <div style={{
-            maxHeight: '100px',
+            maxHeight: '120px',
             overflowY: 'auto',
             border: '1px solid #d0ddd0',
             borderRadius: '8px',
@@ -397,11 +383,9 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
             marginBottom: '8px',
             background: '#f8faf8',
           }}>
-            <div style={{ fontSize: '11px', color: '#6a7a6a', marginBottom: '4px' }}>
-              Available: {players.filter(p => !fixedTeams.some(t => t.player1.id === p.id || t.player2?.id === p.id)).length} players
-            </div>
             {players.map((player) => {
-              const inTeam = fixedTeams.some(t => t.player1.id === player.id || t.player2?.id === player.id)
+              const inTeam = fixedTeams.some(t => t.player1.id === player.id || t.player2.id === player.id)
+              const isSelected = selectedPlayers.find(p => p.id === player.id)
               return (
                 <label
                   key={player.id}
@@ -412,12 +396,12 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
                     padding: '2px 8px',
                     borderRadius: '4px',
                     cursor: 'pointer',
-                    background: inTeam ? 'rgba(74, 222, 128, 0.15)' : 'transparent',
+                    background: inTeam ? 'rgba(74, 222, 128, 0.1)' : (isSelected ? 'rgba(212, 233, 75, 0.1)' : 'transparent'),
                   }}
                 >
                   <input
                     type="checkbox"
-                    checked={inTeam}
+                    checked={!!isSelected}
                     onChange={() => togglePlayer(player)}
                   />
                   <span style={{ color: inTeam ? '#4ade80' : '#1a2a1a' }}>
@@ -428,17 +412,38 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
             })}
           </div>
 
-          {/* Teams list */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
+            <button
+              className="btn-primary"
+              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
+              onClick={autoCreateTeams}
+              disabled={selectedPlayers.length < 2 || selectedPlayers.length % 2 !== 0}
+            >
+              ⚡ Auto Create Teams
+            </button>
+            <button
+              className="btn-secondary"
+              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
+              onClick={clearTeams}
+            >
+              Clear Teams
+            </button>
+          </div>
+
+          {selectedPlayers.length > 0 && selectedPlayers.length % 2 !== 0 && (
+            <div style={{ fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>
+              ⚠️ Need even number of players for Fixed Partner. Currently: {selectedPlayers.length}
+            </div>
+          )}
+
           {fixedTeams.length > 0 && (
             <div style={{
               border: '1px solid #d0ddd0',
               borderRadius: '8px',
               padding: '8px',
               background: '#f8faf8',
+              marginBottom: '8px',
             }}>
-              <div style={{ fontSize: '11px', color: '#6a7a6a', marginBottom: '4px' }}>
-                Teams ({fixedTeams.length})
-              </div>
               {fixedTeams.map((team, index) => (
                 <div
                   key={index}
@@ -451,7 +456,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
                   }}
                 >
                   <span style={{ fontWeight: '600' }}>
-                    {team.player1.name} / {team.player2?.name || '?'}
+                    {team.player1.name} / {team.player2.name}
                   </span>
                   <button
                     style={{
@@ -461,7 +466,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
                       cursor: 'pointer',
                       fontSize: '14px',
                     }}
-                    onClick={() => removeFixedTeam(index)}
+                    onClick={() => removeTeam(index)}
                   >
                     ✕
                   </button>
@@ -471,11 +476,17 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
           )}
 
           {fixedTeams.length === 0 && (
-            <div style={{ fontSize: '12px', color: '#6a7a6a', textAlign: 'center', padding: '8px' }}>
-              Select 2 players and click "Add Team" to create a team.
+            <div style={{ fontSize: '12px', color: '#6a7a6a', textAlign: 'center', padding: '8px', marginBottom: '8px' }}>
+              Select players above and click "Auto Create Teams" to create teams.
             </div>
           )}
-        </div>
+
+          {fixedTeams.length > 0 && fixedTeams.length < 2 && (
+            <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px' }}>
+              ⚠️ Need at least 2 teams to start. Currently: {fixedTeams.length}
+            </div>
+          )}
+        </>
       )}
 
       {/* Standing By */}
