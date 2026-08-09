@@ -1,5 +1,5 @@
 // src/App.jsx
-import { Fragment, useEffect, useState } from 'react'
+import { Fragment, useEffect, useState, useRef } from 'react'
 import { supabase, TENNIS_ADMIN_PIN } from './utils/supabase'
 import { teamLabel, formatJakartaTime } from './utils/helpers'
 import MatchSetup from './components/MatchSetup'
@@ -343,6 +343,11 @@ export default function App() {
   const [isLandscape, setIsLandscape] = useState(false)
   const [refreshKey, setRefreshKey] = useState(0)
   const [players, setPlayers] = useState([])
+  const [showAdmin, setShowAdmin] = useState(false)
+
+  // Tap to reveal admin
+  const [tapCount, setTapCount] = useState(0)
+  const tapTimer = useRef(null)
 
   // Live Config state
   const [showLiveConfig, setShowLiveConfig] = useState(false)
@@ -412,6 +417,21 @@ export default function App() {
     setActiveMatch(match)
   }
 
+  // ===== TAP TO REVEAL ADMIN =====
+  const handleTitleTap = () => {
+    setTapCount(prev => prev + 1)
+    
+    if (tapTimer.current) clearTimeout(tapTimer.current)
+    tapTimer.current = setTimeout(() => {
+      setTapCount(0)
+    }, 2000)
+    
+    if (tapCount + 1 >= 5) {
+      setTapCount(0)
+      setShowAdmin(true)
+    }
+  }
+
   if (isLandscape && activeMatch) {
     return (
       <LiveScoreboardLandscape
@@ -425,7 +445,7 @@ export default function App() {
 
   return (
     <div className="app-shell">
-      <div className="brand">
+      <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
         <div className="brand-title">🎾 TENNIS SCORE</div>
       </div>
 
@@ -448,12 +468,14 @@ export default function App() {
         >
           History
         </button>
-        <button
-          className={`tab ${tab === 'admin' ? 'active' : ''}`}
-          onClick={() => setTab('admin')}
-        >
-          ⚙️
-        </button>
+        {showAdmin && (
+          <button
+            className={`tab ${tab === 'admin' ? 'active' : ''}`}
+            onClick={() => setTab('admin')}
+          >
+            ⚙️
+          </button>
+        )}
       </div>
 
       {tab === 'live' && (
