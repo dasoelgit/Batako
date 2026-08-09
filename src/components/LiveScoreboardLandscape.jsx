@@ -8,6 +8,9 @@ import {
   checkSetResult,
   checkMatchResult,
   isSuddenDeathPoint,
+  isDeuce,
+  isAdvantage,
+  getPointLabel,
 } from '../utils/tennisRules'
 import { getServeSide, getNextServer } from '../utils/tennisHelpers'
 
@@ -86,7 +89,6 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   const [error, setError] = useState('')
   const undoStack = useRef([])
   const [localMatch, setLocalMatch] = useState(match)
-  const [isFullscreen, setIsFullscreen] = useState(false)
   const [showSetPrompt, setShowSetPrompt] = useState(null)
   const [showTiebreakPrompt, setShowTiebreakPrompt] = useState(false)
   const [showMatchComplete, setShowMatchComplete] = useState(false)
@@ -145,8 +147,10 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   const matchWinner = checkMatchResult(sets, match_config)
   const isMatchComplete = matchWinner !== null && localMatch.status === 'active'
 
-  // Check if Sudden Death Point
-  const isSuddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+  // Check display states
+  const suddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+  const deuce = isDeuce(team1_points, team2_points, game_scoring)
+  const advantage = isAdvantage(team1_points, team2_points, game_scoring, deuce_count)
 
   // Snapshot
   const snapshot = () => ({
@@ -228,7 +232,6 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
-      // Increment deuce count when both players are at deuce and points are equal
       const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3 && newPoints1 === newPoints2
       const wasAtDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
       
@@ -402,15 +405,6 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   }
 
   // ============================================================
-  // POINT LABEL HELPER
-  // ============================================================
-  const getPointLabel = (points) => {
-    const labels = ['0', '15', '30', '40']
-    if (points > 3) return String(points)
-    return labels[points] || String(points)
-  }
-
-  // ============================================================
   // RENDER — Match Complete
   // ============================================================
   if (showMatchComplete && matchResult) {
@@ -545,28 +539,16 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   // ============================================================
   // POINT DISPLAY
   // ============================================================
-  const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
-  const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
-  const isAd2 = team1_points >= 3 && team2_points >= 3 && team2_points === team1_points + 1
-
   let pointLabel1 = getPointLabel(team1_points)
   let pointLabel2 = getPointLabel(team2_points)
   let centerLabel = 'vs'
 
-  if (isDeuce) {
-    pointLabel1 = '40'
-    pointLabel2 = '40'
-    centerLabel = 'Deuce'
-  } else if (isAd1) {
-    pointLabel1 = 'Ad'
-    pointLabel2 = '40'
-    centerLabel = 'Advantage'
-  } else if (isAd2) {
-    pointLabel1 = '40'
-    pointLabel2 = 'Ad'
-    centerLabel = 'Advantage'
-  } else if (isSuddenDeath) {
+  if (suddenDeath) {
     centerLabel = '🔥 Sudden Death Point!'
+  } else if (advantage) {
+    centerLabel = 'Ad'
+  } else if (deuce) {
+    centerLabel = 'Deuce'
   }
 
   const team1Name = teamLabel(team1_players).split('/')[0] || 'Team A'
@@ -740,7 +722,7 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
         </button>
       </div>
 
-      {/* Middle info: deuce/advantage label + games + serve */}
+      {/* Middle info */}
       <div style={{
         display: 'flex',
         justifyContent: 'center',
@@ -756,7 +738,7 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
         </span>
         <span style={{ 
           fontWeight: 'bold', 
-          color: isSuddenDeath ? '#c0392b' : 'var(--gold)', 
+          color: suddenDeath ? '#c0392b' : 'var(--gold)', 
           fontSize: 'clamp(14px, 2vh, 20px)',
         }}>
           {centerLabel === 'vs' ? `${team1_games} - ${team2_games}` : centerLabel}
