@@ -3,6 +3,7 @@ import { Fragment, useEffect, useState } from 'react'
 import { supabase, TENNIS_ADMIN_PIN } from './utils/supabase'
 import { teamLabel, formatJakartaTime } from './utils/helpers'
 import MatchSetup from './components/MatchSetup'
+import LiveConfig from './components/LiveConfig'
 import LiveScoreboard from './components/LiveScoreboard'
 import LiveScoreboardLandscape from './components/LiveScoreboardLandscape'
 
@@ -19,10 +20,8 @@ function buildStandings(matches) {
   for (const m of matches) {
     if (m.status !== 'completed') continue
 
-    // Track match result
     const isDraw = m.draw === true
 
-    // Add to winners/losers/draws
     for (const p of m.team1_players) {
       const s = ensure(p)
       if (!isDraw && m.winner === 1) s.wins += 1
@@ -36,7 +35,6 @@ function buildStandings(matches) {
       else if (isDraw) s.draws += 1
     }
 
-    // Track sets won/lost
     for (const set of m.sets || []) {
       if (set.winner === 1) {
         for (const p of m.team1_players) ensure(p).sets_won += 1
@@ -346,6 +344,10 @@ export default function App() {
   const [refreshKey, setRefreshKey] = useState(0)
   const [players, setPlayers] = useState([])
 
+  // Live Config state
+  const [showLiveConfig, setShowLiveConfig] = useState(false)
+  const [liveTeamData, setLiveTeamData] = useState(null)
+
   const refreshPlayers = async () => {
     const { data } = await supabase.from('tennis_players').select('id, name').order('name')
     if (data) setPlayers(data)
@@ -394,6 +396,22 @@ export default function App() {
     setRefreshKey((k) => k + 1)
   }
 
+  const handleStartLive = (data) => {
+    setLiveTeamData(data)
+    setShowLiveConfig(true)
+  }
+
+  const handleLiveConfigBack = () => {
+    setShowLiveConfig(false)
+    setLiveTeamData(null)
+  }
+
+  const handleLiveMatchCreated = (match) => {
+    setShowLiveConfig(false)
+    setLiveTeamData(null)
+    setActiveMatch(match)
+  }
+
   if (isLandscape && activeMatch) {
     return (
       <LiveScoreboardLandscape
@@ -439,7 +457,15 @@ export default function App() {
       </div>
 
       {tab === 'live' && (
-        activeMatch ? (
+        showLiveConfig ? (
+          <LiveConfig
+            team1={liveTeamData.team1}
+            team2={liveTeamData.team2}
+            matchType={liveTeamData.matchType}
+            onBack={handleLiveConfigBack}
+            onMatchCreated={handleLiveMatchCreated}
+          />
+        ) : activeMatch ? (
           <LiveScoreboard
             match={activeMatch}
             onMatchEnded={handleMatchEnded}
@@ -451,6 +477,7 @@ export default function App() {
             players={players}
             refreshPlayers={refreshPlayers}
             onMatchCreated={setActiveMatch}
+            onStartLive={handleStartLive}
           />
         )
       )}
