@@ -40,20 +40,42 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
     return type === 'americano' ? '🇺🇸 Americano' : '🇲🇽 Mexicano'
   }
 
+  // ============================================================
+  // HANDLE DELETE — Also deletes all tournament matches
+  // ============================================================
   const handleDelete = async (id, name) => {
     if (!confirm(`Delete "${name}"? This will also delete all matches in this tournament.`)) return
 
     setDeletingId(id)
     try {
-      // First delete tournament_matches links
-      const { error: linkError } = await supabase
+      // 1. Get all match IDs linked to this tournament
+      const { data: links, error: linkFetchError } = await supabase
+        .from('tennis_tournament_matches')
+        .select('match_id')
+        .eq('tournament_id', id)
+
+      if (linkFetchError) throw linkFetchError
+
+      // 2. Delete all matches from tennis_matches
+      if (links && links.length > 0) {
+        const matchIds = links.map(l => l.match_id)
+        const { error: matchDeleteError } = await supabase
+          .from('tennis_matches')
+          .delete()
+          .in('id', matchIds)
+
+        if (matchDeleteError) throw matchDeleteError
+      }
+
+      // 3. Delete tournament_matches links
+      const { error: linkDeleteError } = await supabase
         .from('tennis_tournament_matches')
         .delete()
         .eq('tournament_id', id)
 
-      if (linkError) throw linkError
+      if (linkDeleteError) throw linkDeleteError
 
-      // Then delete the tournament
+      // 4. Delete the tournament
       const { error: deleteError } = await supabase
         .from('tennis_tournaments')
         .delete()
@@ -61,7 +83,10 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
 
       if (deleteError) throw deleteError
 
-      // Reload list
+      // 5. Refresh leaderboard
+      window.dispatchEvent(new Event('refreshData'))
+
+      // 6. Reload list
       await loadTournaments()
     } catch (err) {
       alert('Error deleting tournament: ' + err.message)
@@ -82,7 +107,7 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
       padding: '20px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
-
+      
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
