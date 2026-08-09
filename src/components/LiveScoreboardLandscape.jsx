@@ -184,7 +184,7 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   }
 
   // ============================================================
-  // ADD POINT
+  // ADD POINT — FIXED
   // ============================================================
   const addPoint = async (team) => {
     if (busy) {
@@ -226,10 +226,11 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
+      // Increment deuce count for 2deuces mode
       if (game_scoring === '2deuces') {
-        const isDeuce = newPoints1 >= 3 && newPoints2 >= 3
-        const wasDeuce = team1_points >= 3 && team2_points >= 3
-        if (isDeuce && wasDeuce && team1_points === team2_points) {
+        const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3
+        const wasAtDeuce = team1_points >= 3 && team2_points >= 3
+        if (wasAtDeuce && isAtDeuce && team1_points === team2_points) {
           newDeuceCount += 1
         }
       }
@@ -400,6 +401,15 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   }
 
   // ============================================================
+  // POINT LABEL HELPER
+  // ============================================================
+  const getPointLabel = (points) => {
+    const labels = ['0', '15', '30', '40']
+    if (points > 3) return String(points)
+    return labels[points] || String(points)
+  }
+
+  // ============================================================
   // RENDER — Match Complete
   // ============================================================
   if (showMatchComplete && matchResult) {
@@ -531,13 +541,15 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   const setsWon2 = sets.filter(s => s.winner === 2).length
   const totalSets = match_config === 'single' ? 1 : match_config === 'best_of_3' ? 3 : 5
 
-  // Point display
+  // ============================================================
+  // POINT DISPLAY — FIXED
+  // ============================================================
   const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
   const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
   const isAd2 = team1_points >= 3 && team2_points >= 3 && team2_points === team1_points + 1
 
-  let pointLabel1 = team1_points > 3 ? String(team1_points) : ['0', '15', '30', '40'][team1_points] || '0'
-  let pointLabel2 = team2_points > 3 ? String(team2_points) : ['0', '15', '30', '40'][team2_points] || '0'
+  let pointLabel1 = getPointLabel(team1_points)
+  let pointLabel2 = getPointLabel(team2_points)
   let centerLabel = 'vs'
 
   if (isDeuce) {
@@ -547,11 +559,11 @@ export default function LiveScoreboardLandscape({ match, onMatchEnded, onMatchUp
   } else if (isAd1) {
     pointLabel1 = 'Ad'
     pointLabel2 = '40'
-    centerLabel = 'Ad (1)'
+    centerLabel = 'Advantage'
   } else if (isAd2) {
     pointLabel1 = '40'
     pointLabel2 = 'Ad'
-    centerLabel = 'Ad (2)'
+    centerLabel = 'Advantage'
   }
 
   const team1Name = teamLabel(team1_players).split('/')[0] || 'Team A'
