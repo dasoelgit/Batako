@@ -7,7 +7,6 @@ import {
   checkTiebreakWinner,
   checkSetResult,
   checkMatchResult,
-  getPointDisplay,
 } from '../utils/tennisRules'
 import { getServeSide, getNextServer } from '../utils/tennisHelpers'
 
@@ -190,7 +189,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   }
 
   // ============================================================
-  // ADD POINT
+  // ADD POINT — FIXED
   // ============================================================
   const addPoint = async (team) => {
     if (busy) {
@@ -214,7 +213,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         const winner = checkTiebreakWinner(newScore1, newScore2, tiebreak_format)
 
         if (winner) {
-          // Tiebreak won → set won
           await finishSet(winner, team1_games, team2_games, `${newScore1}-${newScore2}`)
           setBusy(false)
           return
@@ -233,11 +231,11 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       let newPoints2 = team2_points + (team === 2 ? 1 : 0)
       let newDeuceCount = deuce_count
 
-      // Check if deuce count should increment (for 2deuces mode)
+      // Increment deuce count for 2deuces mode
       if (game_scoring === '2deuces') {
-        const isDeuce = newPoints1 >= 3 && newPoints2 >= 3
-        const wasDeuce = team1_points >= 3 && team2_points >= 3
-        if (isDeuce && wasDeuce && team1_points === team2_points) {
+        const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3
+        const wasAtDeuce = team1_points >= 3 && team2_points >= 3
+        if (wasAtDeuce && isAtDeuce && team1_points === team2_points) {
           newDeuceCount += 1
         }
       }
@@ -245,13 +243,11 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       const gameWinner = checkGameWinner(newPoints1, newPoints2, game_scoring, newDeuceCount)
 
       if (gameWinner) {
-        // Game won → add to set
         await finishGame(gameWinner)
         setBusy(false)
         return
       }
 
-      // Update points and deuce count
       await persist({
         team1_points: newPoints1,
         team2_points: newPoints2,
@@ -273,11 +269,9 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
     const newGames1 = team1_games + (gameWinner === 1 ? 1 : 0)
     const newGames2 = team2_games + (gameWinner === 2 ? 1 : 0)
 
-    // Check set result
     const result = checkSetResult(newGames1, newGames2, set_type, set_value, tiebreak_enabled, false)
 
     if (result?.tiebreak) {
-      // Start tiebreak
       await persist({
         team1_points: 0,
         team2_points: 0,
@@ -293,12 +287,10 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
     }
 
     if (result?.winner) {
-      // Set won
       await finishSet(result.winner, newGames1, newGames2)
       return
     }
 
-    // Continue set — next game
     await persist({
       team1_points: 0,
       team2_points: 0,
@@ -326,7 +318,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
     const matchResult = checkMatchResult(newSets, match_config)
 
     if (matchResult) {
-      // Match complete
       await persist({
         sets: newSets,
         winner: matchResult.winner,
@@ -339,7 +330,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       return
     }
 
-    // Next set
     await persist({
       sets: newSets,
       current_set: current_set + 1,
@@ -366,7 +356,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
 
     try {
       await persist(prev)
-      // If we were showing prompts, hide them
       setShowTiebreakPrompt(false)
       setShowSetPrompt(null)
     } catch (err) {
@@ -400,26 +389,28 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   }
 
   // ============================================================
-  // HANDLE MATCH COMPLETE
+  // HANDLERS
   // ============================================================
   const handleMatchComplete = () => {
     setShowMatchComplete(false)
     if (onMatchEnded) onMatchEnded(localMatch)
   }
 
-  // ============================================================
-  // HANDLE TIEBREAK START
-  // ============================================================
   const handleTiebreakStart = async () => {
     setShowTiebreakPrompt(false)
-    // Tiebreak is already active in DB, just proceed
+  }
+
+  const handleSetContinue = () => {
+    setShowSetPrompt(null)
   }
 
   // ============================================================
-  // HANDLE SET CONTINUE
+  // POINT LABEL HELPER
   // ============================================================
-  const handleSetContinue = () => {
-    setShowSetPrompt(null)
+  const getPointLabel = (points) => {
+    const labels = ['0', '15', '30', '40']
+    if (points > 3) return String(points)
+    return labels[points] || String(points)
   }
 
   // ============================================================
@@ -430,30 +421,25 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
     const winnerName = isDraw ? 'DRAW' : (matchResult.winner === 1 ? teamLabel(team1_players) : teamLabel(team2_players))
 
     return (
-      <div style={{
-        background: '#ffffff',
-        borderRadius: '12px',
-        padding: '30px',
+      <div className="card" style={{
         textAlign: 'center',
-        boxShadow: '0 4px 24px rgba(0,0,0,0.15)',
         border: isDraw ? '2px solid var(--gold)' : '2px solid var(--accent)',
       }}>
-        <div style={{ fontSize: '32px', marginBottom: '8px' }}>
+        <div style={{ fontSize: '48px', marginBottom: '8px' }}>
           {isDraw ? '⚖️' : '🏆'}
         </div>
         <div style={{
-          fontSize: '24px',
+          fontSize: '28px',
           fontWeight: '800',
-          color: isDraw ? 'var(--gold)' : 'var(--gold)',
+          color: 'var(--gold)',
           marginBottom: '4px',
         }}>
           {isDraw ? 'MATCH DRAW!' : `${winnerName} WINS!`}
         </div>
-        <div style={{ fontSize: '14px', color: 'var(--text-muted)', marginBottom: '16px' }}>
+        <div style={{ fontSize: '16px', color: 'var(--text-muted)', marginBottom: '16px' }}>
           {isDraw ? 'Both teams tied' : 'Champion of the match'}
         </div>
 
-        {/* Set summary */}
         <div style={{
           display: 'flex',
           gap: '12px',
@@ -522,17 +508,18 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   // ============================================================
   const setsWon1 = sets.filter(s => s.winner === 1).length
   const setsWon2 = sets.filter(s => s.winner === 2).length
-  const pointDisplay = getPointDisplay(team1_points, team2_points)
-  const serveSide = getServeSide(team1_points + team2_points)
-  const nextServer = getNextServer(team1_games + team2_games + 1)
+  const totalSets = match_config === 'single' ? 1 : match_config === 'best_of_3' ? 3 : 5
+  const isSingles = localMatch.play_type === 'singles'
 
-  // Determine if we should show deuce/advantage
+  // ============================================================
+  // POINT DISPLAY — FIXED
+  // ============================================================
   const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
   const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
   const isAd2 = team1_points >= 3 && team2_points >= 3 && team2_points === team1_points + 1
 
-  let pointLabel1 = team1_points > 3 ? String(team1_points) : ['0', '15', '30', '40'][team1_points] || '0'
-  let pointLabel2 = team2_points > 3 ? String(team2_points) : ['0', '15', '30', '40'][team2_points] || '0'
+  let pointLabel1 = getPointLabel(team1_points)
+  let pointLabel2 = getPointLabel(team2_points)
   let centerLabel = 'vs'
 
   if (isDeuce) {
@@ -542,16 +529,12 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   } else if (isAd1) {
     pointLabel1 = 'Ad'
     pointLabel2 = '40'
-    centerLabel = 'Ad (1)'
+    centerLabel = 'Advantage'
   } else if (isAd2) {
     pointLabel1 = '40'
     pointLabel2 = 'Ad'
-    centerLabel = 'Ad (2)'
+    centerLabel = 'Advantage'
   }
-
-  // Get match info
-  const totalSets = match_config === 'single' ? 1 : match_config === 'best_of_3' ? 3 : 5
-  const isSingles = localMatch.play_type === 'singles'
 
   return (
     <div className="card">
@@ -626,7 +609,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         {tiebreak_active && ` · Tiebreak: ${tiebreak_score1}-${tiebreak_score2}`}
       </div>
 
-      {/* Points Display */}
+      {/* Points Display — FIXED */}
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -635,13 +618,13 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         marginBottom: '12px',
         padding: '0 4px',
       }}>
-        <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>
           {pointLabel1}
         </div>
-        <div style={{ fontSize: '14px', color: 'var(--text-muted)', fontWeight: '600' }}>
+        <div style={{ fontSize: '16px', color: 'var(--text-muted)', fontWeight: '600' }}>
           {centerLabel}
         </div>
-        <div style={{ fontSize: '20px', fontWeight: '700', color: 'var(--text-primary)' }}>
+        <div style={{ fontSize: '28px', fontWeight: '700', color: 'var(--text-primary)' }}>
           {pointLabel2}
         </div>
       </div>
@@ -658,7 +641,7 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       }}>
         Serving: <strong>{getNextServer(team1_games + team2_games + 1) === 1 ? teamLabel(team1_players) : teamLabel(team2_players)}</strong>
         {' · '}
-        {serveSide} Court
+        {getServeSide(team1_points + team2_points)} Court
       </div>
 
       {/* Doubles indicator */}
