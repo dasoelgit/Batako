@@ -189,6 +189,120 @@ export function generateMexicanoPairings(players, standings, roundNumber) {
 }
 
 // ============================================================
+// GENERATE SINGLES ROUNDS (1v1)
+// ============================================================
+export function generateSinglesRounds(players, totalRounds) {
+  const numPlayers = players.length
+  const isEven = numPlayers % 2 === 0
+  const rounds = []
+  
+  let workingPlayers = [...players]
+  
+  if (!isEven) {
+    workingPlayers.push({ id: 'bye', name: 'BYE', isBye: true })
+  }
+  
+  const n = workingPlayers.length
+  
+  for (let round = 1; round <= totalRounds; round++) {
+    const roundMatches = []
+    const half = n / 2
+    
+    for (let i = 0; i < half; i++) {
+      const p1 = workingPlayers[i]
+      const p2 = workingPlayers[n - 1 - i]
+      
+      if (p1 && p2 && !p1.isBye && !p2.isBye) {
+        roundMatches.push({
+          team1: [p1],
+          team2: [p2],
+          completed: false,
+          score1: 0,
+          score2: 0,
+        })
+      } else if (p1 && !p1.isBye) {
+        roundMatches.push({
+          team1: [p1],
+          team2: null,
+          completed: true,
+          score1: 0,
+          score2: 0,
+          isBye: true,
+        })
+      }
+    }
+    
+    rounds.push({
+      round_number: round,
+      matches: roundMatches,
+    })
+    
+    // Rotate players for next round
+    const last = workingPlayers.pop()
+    workingPlayers.splice(1, 0, last)
+  }
+  
+  return rounds
+}
+
+// ============================================================
+// GENERATE FIXED PARTNER ROUNDS (Teams stay together)
+// ============================================================
+export function generateFixedPartnerRounds(teams, totalRounds) {
+  const numTeams = teams.length
+  const isEven = numTeams % 2 === 0
+  const rounds = []
+  
+  let workingTeams = [...teams]
+  
+  if (!isEven) {
+    workingTeams.push({ id: 'bye', name: 'BYE', isBye: true })
+  }
+  
+  const n = workingTeams.length
+  
+  for (let round = 1; round <= totalRounds; round++) {
+    const roundMatches = []
+    const half = n / 2
+    
+    for (let i = 0; i < half; i++) {
+      const t1 = workingTeams[i]
+      const t2 = workingTeams[n - 1 - i]
+      
+      if (t1 && t2 && !t1.isBye && !t2.isBye) {
+        roundMatches.push({
+          team1: [t1.player1, t1.player2],
+          team2: [t2.player1, t2.player2],
+          completed: false,
+          score1: 0,
+          score2: 0,
+        })
+      } else if (t1 && !t1.isBye) {
+        roundMatches.push({
+          team1: [t1.player1, t1.player2],
+          team2: null,
+          completed: true,
+          score1: 0,
+          score2: 0,
+          isBye: true,
+        })
+      }
+    }
+    
+    rounds.push({
+      round_number: round,
+      matches: roundMatches,
+    })
+    
+    // Rotate teams for next round
+    const last = workingTeams.pop()
+    workingTeams.splice(1, 0, last)
+  }
+  
+  return rounds
+}
+
+// ============================================================
 // CALCULATE TOURNAMENT STANDINGS
 // ============================================================
 export function calculateTournamentStandings(players, rounds, standingBy) {
