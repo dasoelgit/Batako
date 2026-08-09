@@ -8,6 +8,9 @@ import {
   checkSetResult,
   checkMatchResult,
   isSuddenDeathPoint,
+  isDeuce,
+  isAdvantage,
+  getPointLabel,
 } from '../utils/tennisRules'
 import { getServeSide, getNextServer } from '../utils/tennisHelpers'
 
@@ -150,8 +153,10 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   // Check if match is complete
   const isMatchComplete = matchWinner !== null && localMatch.status === 'active'
 
-  // Check if Sudden Death Point
-  const isSuddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+  // Check display states
+  const suddenDeath = isSuddenDeathPoint(team1_points, team2_points, game_scoring, deuce_count)
+  const deuce = isDeuce(team1_points, team2_points, game_scoring)
+  const advantage = isAdvantage(team1_points, team2_points, game_scoring, deuce_count)
 
   // ============================================================
   // SNAPSHOT & PERSIST
@@ -236,7 +241,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
       let newDeuceCount = deuce_count
 
       // Increment deuce count when both players are at deuce and points are equal
-      // This tracks how many deuces have occurred
       const isAtDeuce = newPoints1 >= 3 && newPoints2 >= 3 && newPoints1 === newPoints2
       const wasAtDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
       
@@ -409,15 +413,6 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   }
 
   // ============================================================
-  // POINT LABEL HELPER
-  // ============================================================
-  const getPointLabel = (points) => {
-    const labels = ['0', '15', '30', '40']
-    if (points > 3) return String(points)
-    return labels[points] || String(points)
-  }
-
-  // ============================================================
   // RENDER — Match Complete
   // ============================================================
   if (showMatchComplete && matchResult) {
@@ -518,33 +513,20 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   // ============================================================
   // POINT DISPLAY
   // ============================================================
-  const isDeuce = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points
-  const isAd1 = team1_points >= 3 && team2_points >= 3 && team1_points === team2_points + 1
-  const isAd2 = team1_points >= 3 && team2_points >= 3 && team2_points === team1_points + 1
-
   let pointLabel1 = getPointLabel(team1_points)
   let pointLabel2 = getPointLabel(team2_points)
   let centerLabel = 'vs'
 
-  if (isDeuce) {
-    pointLabel1 = '40'
-    pointLabel2 = '40'
-    centerLabel = 'Deuce'
-  } else if (isAd1) {
-    pointLabel1 = 'Ad'
-    pointLabel2 = '40'
-    centerLabel = 'Advantage'
-  } else if (isAd2) {
-    pointLabel1 = '40'
-    pointLabel2 = 'Ad'
-    centerLabel = 'Advantage'
-  } else if (isSuddenDeath) {
+  if (suddenDeath) {
     centerLabel = '🔥 Sudden Death Point!'
+  } else if (advantage) {
+    centerLabel = 'Ad'
+  } else if (deuce) {
+    centerLabel = 'Deuce'
   }
 
-  // For No Deuce mode, we don't show deuce at all
-  const isNoDeuce = game_scoring === 'no_deuce'
-  const showDeuceDisplay = !isNoDeuce
+  // For No Deuce mode at 3-3, show Sudden Death Point
+  // This is handled by suddenDeath check above
 
   return (
     <div className="card">
@@ -633,8 +615,8 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
         </div>
         <div style={{ 
           fontSize: '16px', 
-          color: isSuddenDeath ? '#c0392b' : 'var(--text-muted)', 
-          fontWeight: isSuddenDeath ? '800' : '600',
+          color: suddenDeath ? '#c0392b' : 'var(--text-muted)', 
+          fontWeight: suddenDeath ? '800' : '600',
         }}>
           {centerLabel}
         </div>
