@@ -514,14 +514,15 @@ export default function LiveScoreboard({ match, onMatchEnded, onMatchUpdated, on
   // ============================================================
   // POINT DISPLAY
   // ============================================================
-  let pointLabel1 = getPointLabel(team1_points)
-  let pointLabel2 = getPointLabel(team2_points)
+  let pointLabel1 = getPointLabel(team1_points, team2_points)
+  let pointLabel2 = getPointLabel(team2_points, team1_points)
   let centerLabel = 'vs'
 
   if (suddenDeath) {
     centerLabel = '🔥 Sudden Death Point!'
   } else if (advantage) {
-    centerLabel = 'Ad'
+    // Which side is ahead is already shown as "Ad" next to their score
+    centerLabel = ''
   } else if (deuce) {
     centerLabel = 'Deuce'
   }
