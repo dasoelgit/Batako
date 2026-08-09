@@ -190,10 +190,20 @@ export function checkMatchResult(sets, matchConfig) {
 // ============================================================
 // POINT DISPLAY
 // ============================================================
-export function getPointLabel(points) {
+export function getPointLabel(myPoints, opponentPoints = 0) {
   const labels = ['0', '15', '30', '40']
-  if (points > 3) return String(points)
-  return labels[points] || String(points)
+
+  // Below deuce territory: normal 0/15/30/40 ladder
+  if (myPoints <= 3 && opponentPoints <= 3) {
+    return labels[myPoints] ?? String(myPoints)
+  }
+
+  // Deuce territory (someone is past 40): never show raw point counts.
+  // Tied -> "40" (the "Deuce" label is shown separately as the center label).
+  // Ahead by one -> "Ad". Behind by one -> "40".
+  if (myPoints === opponentPoints) return '40'
+  if (myPoints > opponentPoints) return 'Ad'
+  return '40'
 }
 
 // ============================================================
