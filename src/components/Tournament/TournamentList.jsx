@@ -82,22 +82,6 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
       padding: '20px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
-      <button
-        onClick={onBack}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#6a7a6a',
-          fontSize: '14px',
-          cursor: 'pointer',
-          padding: '0 0 12px 0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-        }}
-      >
-        ← Back
-      </button>
 
       <div style={{
         display: 'flex',
