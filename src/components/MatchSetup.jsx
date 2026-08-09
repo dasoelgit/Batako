@@ -6,7 +6,7 @@ import PlayerPicker from './PlayerPicker'
 
 const GAME_SCORING_OPTIONS = [
   { id: 'standard', label: 'Standard' },
-  { id: 'sudden', label: 'Sudden' },
+  { id: 'no_deuce', label: 'No Deuce' },
   { id: '1deuce', label: '1 Deuce' },
   { id: '2deuces', label: '2 Deuces' },
 ]
