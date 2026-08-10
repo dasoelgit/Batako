@@ -167,27 +167,42 @@ export default function App() {
   }
 
   // Admin page (overrides everything)
-  if (showAdmin) {
-    return (
-      <div className="app-shell">
-        <div className="brand">
-          <div className="brand-title">🎾 TENNIS SCORE</div>
-        </div>
-        <AdminPanel
-          players={players}
-          refreshPlayers={refreshPlayers}
-          onDataChanged={() => setRefreshKey(k => k + 1)}
-          onBack={handleAdminBack}
-        />
-      </div>
-    )
-  }
-
+if (showAdmin) {
   return (
     <div className="app-shell">
-      <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
-        <div className="brand-title">🎾 TENNIS SCORE</div>
+      <div className="brand">
+        <img 
+          src="/logo.png" 
+          alt="Batako Tennis Club" 
+          style={{ 
+            height: '50px', 
+            width: 'auto',
+            maxWidth: '200px',
+          }} 
+        />
       </div>
+      <AdminPanel
+        players={players}
+        refreshPlayers={refreshPlayers}
+        onDataChanged={() => setRefreshKey(k => k + 1)}
+        onBack={handleAdminBack}
+      />
+    </div>
+  )
+}
+
+  return (
+    <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
+  <img 
+    src="/logo.png" 
+    alt="Batako Tennis Club" 
+    style={{ 
+      height: '50px', 
+      width: 'auto',
+      maxWidth: '200px',
+    }} 
+  />
+</div>
 
       <div className="tabs">
         <button
