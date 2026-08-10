@@ -37,10 +37,10 @@ export default function TournamentList({ onSelectTournament, onCreateNew }) {
 
   const getTypeLabel = (type) => {
     const labels = {
-      americano: '🇺🇸 Americano',
-      mexicano: '🇲🇽 Mexicano',
-      singles: '🎾 Singles',
-      fixed_partner: '👥 Fixed Partner',
+      americano: 'Americano',
+      mexicano: 'Mexicano',
+      singles: 'Singles',
+      fixed_partner: 'Fixed Partner',
     }
     return labels[type] || type
   }
