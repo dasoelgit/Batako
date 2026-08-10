@@ -1,7 +1,7 @@
 // src/components/LiveScoreboard.jsx
 import { useState, useRef, useEffect } from 'react'
-import { supabase } from '../utils/supabase'
-import { teamLabel } from '../utils/helpers'
+import { supabase } from '../../utils/supabase'
+import { teamLabel } from '../../utils/helpers'
 import {
   checkGameWinner,
   checkTiebreakWinner,
