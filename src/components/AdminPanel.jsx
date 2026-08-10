@@ -593,21 +593,23 @@ export default function AdminPanel({ players, refreshPlayers, onDataChanged, onB
     return (
       <div>
         <button
-          onClick={onBack}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#6a7a6a',
-            fontSize: '14px',
-            cursor: 'pointer',
-            padding: '0 0 12px 0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          ← Back
-        </button>
+  className="btn-primary"
+  onClick={onBack}
+  style={{ 
+    width: '100%',
+    padding: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
+    marginBottom: '16px',
+    background: '#d4e94b',
+    color: '#1a2a1a',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  }}
+>
+  ← Back
+</button>
 
         <div className="card">
           <span className="field-label">Admin PIN</span>
@@ -647,21 +649,23 @@ export default function AdminPanel({ players, refreshPlayers, onDataChanged, onB
   return (
     <div>
       <button
-        onClick={onBack}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#6a7a6a',
-          fontSize: '14px',
-          cursor: 'pointer',
-          padding: '0 0 12px 0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-        }}
-      >
-        ← Back
-      </button>
+  className="btn-primary"
+  onClick={onBack}
+  style={{ 
+    width: '100%',
+    padding: '12px',
+    fontSize: '14px',
+    fontWeight: '600',
+    marginBottom: '16px',
+    background: '#d4e94b',
+    color: '#1a2a1a',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  }}
+>
+  ← Back
+</button>
 
       <div className="match-type-toggle" style={{ marginBottom: 14 }}>
         <button className={tab === 'players' ? 'active' : ''} onClick={() => setTab('players')}>
