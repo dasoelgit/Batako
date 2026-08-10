@@ -9,6 +9,7 @@ import LiveScoreboardLandscape from './components/LiveScoreboardLandscape'
 import TournamentList from './components/Tournament/TournamentList'
 import TournamentSetup from './components/Tournament/TournamentSetup'
 import TournamentDashboard from './components/Tournament/TournamentDashboard'
+import AdminPanel from './components/AdminPanel'
 
 // ============================================================
 // LEADERBOARD
@@ -32,7 +33,6 @@ function buildStandings(matches) {
 
     const isDraw = m.draw === true
 
-    // Team 1 players
     for (const p of m.team1_players) {
       const s = ensure(p)
       s.matches += 1
@@ -48,7 +48,6 @@ function buildStandings(matches) {
       }
     }
 
-    // Team 2 players
     for (const p of m.team2_players) {
       const s = ensure(p)
       s.matches += 1
@@ -222,160 +221,6 @@ function History({ refreshKey }) {
 }
 
 // ============================================================
-// ADMIN PANEL
-// ============================================================
-function AdminPlayers({ players, refreshPlayers }) {
-  const [newName, setNewName] = useState('')
-  const [busy, setBusy] = useState(false)
-  const [error, setError] = useState('')
-
-  const addPlayer = async () => {
-    const trimmed = newName.trim()
-    if (!trimmed) return
-    setBusy(true)
-    setError('')
-    const { error: insertError } = await supabase.from('tennis_players').insert({ name: trimmed })
-    setBusy(false)
-    if (insertError) {
-      setError(insertError.code === '23505' ? 'That player already exists.' : insertError.message)
-      return
-    }
-    setNewName('')
-    refreshPlayers()
-  }
-
-  return (
-    <div className="card">
-      <span className="field-label">Add player</span>
-      <div style={{ display: 'flex', gap: 8 }}>
-        <input
-          type="text"
-          placeholder="Player name"
-          value={newName}
-          onChange={(e) => setNewName(e.target.value)}
-          style={{ marginBottom: 0 }}
-        />
-        <button
-          className="btn-primary"
-          style={{ width: 'auto', padding: '0 16px' }}
-          disabled={busy || !newName.trim()}
-          onClick={addPlayer}
-        >
-          Add
-        </button>
-      </div>
-      {error && (
-        <div style={{
-          background: 'rgba(214,67,47,0.12)',
-          color: '#c0392b',
-          padding: '10px',
-          borderRadius: '6px',
-          fontSize: '13px',
-          marginTop: '12px',
-          textAlign: 'center',
-        }}>
-          {error}
-        </div>
-      )}
-      <div style={{ marginTop: 16 }}>
-        <span className="field-label">All players ({players.length})</span>
-        {players.map((p) => (
-          <div key={p.id} className="leaderboard-row" style={{ gridTemplateColumns: '1fr auto' }}>
-            <div className="player-name">{p.name}</div>
-            <button
-              className="btn-secondary"
-              style={{ width: 'auto', padding: '4px 12px' }}
-              onClick={() => {
-                if (confirm(`Remove ${p.name}?`)) {
-                  supabase.from('tennis_players').delete().eq('id', p.id).then(() => refreshPlayers())
-                }
-              }}
-            >
-              Remove
-            </button>
-          </div>
-        ))}
-      </div>
-    </div>
-  )
-}
-
-function AdminPanel({ players, refreshPlayers, onBack }) {
-  const [authed, setAuthed] = useState(false)
-  const [pin, setPin] = useState('')
-  const [pinError, setPinError] = useState('')
-
-  if (!authed) {
-    return (
-      <div className="card">
-        <button
-          onClick={onBack}
-          style={{
-            background: 'none',
-            border: 'none',
-            color: '#6a7a6a',
-            fontSize: '14px',
-            cursor: 'pointer',
-            padding: '0 0 12px 0',
-            display: 'flex',
-            alignItems: 'center',
-            gap: '4px',
-          }}
-        >
-          ← Back
-        </button>
-        <span className="field-label">Admin PIN</span>
-        <input
-          type="text"
-          inputMode="numeric"
-          placeholder="Enter PIN"
-          value={pin}
-          onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
-          onKeyDown={(e) => {
-            if (e.key === 'Enter') {
-              if (pin === TENNIS_ADMIN_PIN) {
-                setAuthed(true)
-                setPinError('')
-              } else {
-                setPinError('Wrong PIN')
-              }
-            }
-          }}
-        />
-        {pinError && (
-          <div style={{
-            background: 'rgba(214,67,47,0.12)',
-            color: '#c0392b',
-            padding: '10px',
-            borderRadius: '6px',
-            fontSize: '13px',
-            marginBottom: '12px',
-            textAlign: 'center',
-          }}>
-            {pinError}
-          </div>
-        )}
-        <button
-          className="btn-primary"
-          onClick={() => {
-            if (pin === TENNIS_ADMIN_PIN) {
-              setAuthed(true)
-              setPinError('')
-            } else {
-              setPinError('Wrong PIN')
-            }
-          }}
-        >
-          Unlock
-        </button>
-      </div>
-    )
-  }
-
-  return <AdminPlayers players={players} refreshPlayers={refreshPlayers} />
-}
-
-// ============================================================
 // APP
 // ============================================================
 export default function App() {
@@ -395,7 +240,7 @@ export default function App() {
   const [liveTeamData, setLiveTeamData] = useState(null)
 
   // Tournament state
-  const [tournamentView, setTournamentView] = useState('list') // 'list' | 'setup' | 'dashboard'
+  const [tournamentView, setTournamentView] = useState('list')
   const [selectedTournamentId, setSelectedTournamentId] = useState(null)
 
   const refreshPlayers = async () => {
@@ -462,7 +307,7 @@ export default function App() {
     setActiveMatch(match)
   }
 
-  // ===== TAP TO REVEAL ADMIN (Page, not tab) =====
+  // ===== TAP TO REVEAL ADMIN =====
   const handleTitleTap = () => {
     setTapCount(prev => prev + 1)
 
@@ -518,7 +363,7 @@ export default function App() {
     )
   }
 
-  // Admin page (overrides everything, no tab change)
+  // Admin page (overrides everything)
   if (showAdmin) {
     return (
       <div className="app-shell">
@@ -528,6 +373,7 @@ export default function App() {
         <AdminPanel
           players={players}
           refreshPlayers={refreshPlayers}
+          onDataChanged={() => setRefreshKey(k => k + 1)}
           onBack={handleAdminBack}
         />
       </div>
@@ -537,7 +383,7 @@ export default function App() {
   return (
     <div className="app-shell">
       <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
-        <div className="brand-title">BATAKO TENNIS CLUB</div>
+        <div className="brand-title">🎾 TENNIS SCORE</div>
       </div>
 
       <div className="tabs">
