@@ -2,91 +2,26 @@
 import { Fragment, useEffect, useState, useRef } from 'react'
 import { supabase, TENNIS_ADMIN_PIN } from './utils/supabase'
 import { teamLabel, formatJakartaTime } from './utils/helpers'
-import MatchSetup from './components/MatchSetup'
-import LiveConfig from './components/LiveConfig'
-import LiveScoreboard from './components/LiveScoreboard'
-import LiveScoreboardLandscape from './components/LiveScoreboardLandscape'
+
+// Match components
+import MatchSetup from './components/Match/MatchSetup'
+import LiveConfig from './components/Match/LiveConfig'
+import LiveScoreboard from './components/Match/LiveScoreboard'
+import LiveScoreboardLandscape from './components/Match/LiveScoreboardLandscape'
+
+// Tournament components
 import TournamentList from './components/Tournament/TournamentList'
 import TournamentSetup from './components/Tournament/TournamentSetup'
 import TournamentDashboard from './components/Tournament/TournamentDashboard'
-import AdminPanel from './components/AdminPanel'
+
+// Stats
 import Stats from './components/Stats/Stats'
 
-// ============================================================
-// HISTORY
-// ============================================================
-function History({ refreshKey }) {
-  const [matches, setMatches] = useState(null)
+// History
+import History from './components/History/History'
 
-  useEffect(() => {
-    let active = true
-    supabase
-      .from('tennis_matches')
-      .select('*')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-      .limit(50)
-      .then(({ data }) => {
-        if (active && data) setMatches(data)
-      })
-    return () => { active = false }
-  }, [refreshKey])
-
-  if (matches === null) return <div className="loading">Loading history…</div>
-  if (matches.length === 0) return <div className="empty-state">No matches played yet.</div>
-
-  return (
-    <div className="card">
-      {matches.map((m) => {
-        const isDraw = m.draw === true
-        const isTournament = m.is_tournament_match === true
-        return (
-          <div key={m.id} className="history-row">
-            <div className="history-teams">
-              <span className={!isDraw && m.winner === 1 ? 'history-winner' : ''}>
-                {teamLabel(m.team1_players)}
-              </span>
-              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>vs</span>
-              <span className={!isDraw && m.winner === 2 ? 'history-winner' : ''}>
-                {teamLabel(m.team2_players)}
-              </span>
-            </div>
-            <div className="history-games">
-              {isDraw ? (
-                <span style={{ color: 'var(--gold)', fontWeight: '600' }}>⚖️ DRAW</span>
-              ) : (
-                <span style={{ color: 'var(--accent-dark)', fontWeight: '600' }}>
-                  {m.winner === 1 ? teamLabel(m.team1_players) : teamLabel(m.team2_players)} WINS
-                </span>
-              )}
-              {' · '}
-              {m.sets?.map((s, i) => (
-                <span key={i}>
-                  {i > 0 && ' · '}
-                  {s.team1_games}-{s.team2_games}
-                  {s.tiebreak && ` (${s.tiebreak})`}
-                </span>
-              ))}
-              {isTournament && (
-                <span style={{
-                  fontSize: '10px',
-                  marginLeft: '6px',
-                  color: '#d4a843',
-                  fontWeight: '600',
-                }}>
-                  🏆
-                </span>
-              )}
-            </div>
-            <div className="history-games" style={{ marginTop: 4 }}>
-              {formatJakartaTime(m.completed_at)}
-            </div>
-          </div>
-        )
-      })}
-    </div>
-  )
-}
+// Admin
+import AdminPanel from './components/AdminPanel'
 
 // ============================================================
 // APP
