@@ -1,6 +1,6 @@
 // src/components/AdminPanel.jsx
 import { useState, useEffect } from 'react'
-import { supabase } from '../utils/supabase'
+import { supabase, TENNIS_ADMIN_PIN } from '../utils/supabase'
 import { teamLabel, formatJakartaTime } from '../utils/helpers'
 
 // ============================================================
@@ -101,7 +101,6 @@ function AdminMatches({ onDataChanged }) {
     setLoading(true)
     setError('')
     try {
-      // Only load regular matches (not tournament matches)
       const { data, error } = await supabase
         .from('tennis_matches')
         .select('*')
@@ -132,7 +131,6 @@ function AdminMatches({ onDataChanged }) {
 
   const startEdit = (match) => {
     setEditingId(match.id)
-    // Initialize edit scores from existing sets
     if (match.sets && match.sets.length > 0) {
       setEditScores(match.sets.map(s => ({
         team1: String(s.team1_games),
@@ -159,13 +157,11 @@ function AdminMatches({ onDataChanged }) {
     setError('')
 
     try {
-      // Validate scores
       const parsedSets = editScores.map(s => ({
         team1_games: parseInt(s.team1) || 0,
         team2_games: parseInt(s.team2) || 0,
       }))
 
-      // Calculate winner for each set and overall
       const setsWithWinner = parsedSets.map((s, i) => {
         let winner = null
         if (s.team1_games > s.team2_games) winner = 1
@@ -179,7 +175,6 @@ function AdminMatches({ onDataChanged }) {
         }
       })
 
-      // Calculate match winner
       const wins1 = setsWithWinner.filter(s => s.winner === 1).length
       const wins2 = setsWithWinner.filter(s => s.winner === 2).length
       let matchWinner = null
@@ -188,7 +183,6 @@ function AdminMatches({ onDataChanged }) {
       else if (wins2 > wins1) matchWinner = 2
       else draw = true
 
-      // Update match
       const { error: updateError } = await supabase
         .from('tennis_matches')
         .update({
@@ -273,7 +267,6 @@ function AdminMatches({ onDataChanged }) {
               }}
             >
               {!isEditing ? (
-                // View mode
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '14px' }}>
                     {teamLabel(m.team1_players)} vs {teamLabel(m.team2_players)}
@@ -304,7 +297,6 @@ function AdminMatches({ onDataChanged }) {
                   </div>
                 </div>
               ) : (
-                // Edit mode
                 <div>
                   <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '8px' }}>
                     ✏️ {teamLabel(m.team1_players)} vs {teamLabel(m.team2_players)}
@@ -580,11 +572,78 @@ function AdminTournaments({ onDataChanged }) {
 }
 
 // ============================================================
-// ADMIN PANEL (MAIN)
+// ADMIN PANEL (MAIN) — WITH PIN CHECK
 // ============================================================
 export default function AdminPanel({ players, refreshPlayers, onDataChanged, onBack }) {
+  const [authed, setAuthed] = useState(false)
+  const [pin, setPin] = useState('')
+  const [pinError, setPinError] = useState('')
   const [tab, setTab] = useState('players')
 
+  const handleUnlock = () => {
+    if (pin === TENNIS_ADMIN_PIN) {
+      setAuthed(true)
+      setPinError('')
+    } else {
+      setPinError('Wrong PIN')
+    }
+  }
+
+  if (!authed) {
+    return (
+      <div>
+        <button
+          onClick={onBack}
+          style={{
+            background: 'none',
+            border: 'none',
+            color: '#6a7a6a',
+            fontSize: '14px',
+            cursor: 'pointer',
+            padding: '0 0 12px 0',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '4px',
+          }}
+        >
+          ← Back
+        </button>
+
+        <div className="card">
+          <span className="field-label">Admin PIN</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            placeholder="Enter PIN"
+            value={pin}
+            onChange={(e) => setPin(e.target.value.replace(/[^0-9]/g, ''))}
+            onKeyDown={(e) => {
+              if (e.key === 'Enter') handleUnlock()
+            }}
+            style={{ marginBottom: '12px' }}
+          />
+          {pinError && (
+            <div style={{
+              background: 'rgba(214,67,47,0.12)',
+              color: '#c0392b',
+              padding: '10px',
+              borderRadius: '6px',
+              fontSize: '13px',
+              marginBottom: '12px',
+              textAlign: 'center',
+            }}>
+              {pinError}
+            </div>
+          )}
+          <button className="btn-primary" onClick={handleUnlock}>
+            Unlock
+          </button>
+        </div>
+      </div>
+    )
+  }
+
+  // --- Admin content (unlocked) ---
   return (
     <div>
       <button
