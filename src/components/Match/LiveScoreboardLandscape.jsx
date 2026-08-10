@@ -11,8 +11,8 @@ import {
   isDeuce,
   isAdvantage,
   getPointLabel,
-} from '../utils/tennisRules'
-import { getServeSide, getNextServer } from '../utils/tennisHelpers'
+} from '../../utils/tennisRules'
+import { getServeSide, getNextServer } from '../../utils/tennisHelpers'
 
 // ============================================================
 // SET COMPLETE PROMPT (Landscape)
