@@ -5,7 +5,8 @@ import { supabase } from '../../utils/supabase'
 export default function PlayerStatsModal({ player, onClose }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
-  const [showDetailsModal, setShowDetailsModal] = useState(false)
+  const [showStatsModal, setShowStatsModal] = useState(false)
+  const [showH2hModal, setShowH2hModal] = useState(false)
 
   useEffect(() => {
     loadPlayerStats()
@@ -42,7 +43,6 @@ export default function PlayerStatsModal({ player, onClose }) {
         const isTeam1 = (m.team1_players || []).some(p => p.id === player.id)
         const isSingles = m.play_type === 'singles'
         
-        // Points
         let scored, conceded
         if (isTeam1) {
           scored = m.team1_games || 0
@@ -52,7 +52,6 @@ export default function PlayerStatsModal({ player, onClose }) {
           conceded = m.team1_games || 0
         }
 
-        // Determine result
         let result = 'draw'
         if (!isDraw) {
           const isWinner = isTeam1 ? m.winner === 1 : m.winner === 2
@@ -161,9 +160,6 @@ export default function PlayerStatsModal({ player, onClose }) {
           return rateB - rateA
         })[0] || null
 
-      // If bestPartner and mostCommon are the same, don't duplicate
-      const showBestPartner = bestPartner && (!mostCommon || bestPartner.id !== mostCommon.id)
-
       const totalWinRate = totalMatches > 0 ? Math.round((totalWins / totalMatches) * 100) : 0
       const totalDiff = totalPointsFor - totalPointsAgainst
 
@@ -185,7 +181,6 @@ export default function PlayerStatsModal({ player, onClose }) {
         nightmare,
         mostCommon,
         bestPartner,
-        showBestPartner,
       })
     } catch (err) {
       console.error('Error loading player stats:', err)
@@ -255,13 +250,18 @@ export default function PlayerStatsModal({ player, onClose }) {
     )
   }
 
-  const { singles, doubles, total, h2h, punchingTarget, nightmare, mostCommon, bestPartner, showBestPartner } = stats
+  const { singles, doubles, total, h2h, punchingTarget, nightmare, mostCommon, bestPartner } = stats
 
   const getResultIcon = (wins, losses, draws) => {
     if (wins > losses) return '✅'
     if (losses > wins) return '❌'
     if (draws > 0) return '⚖️'
     return '—'
+  }
+
+  const formatWinRate = (matches, wins) => {
+    if (matches === 0) return '—'
+    return `${Math.round((wins / matches) * 100)}%`
   }
 
   return (
@@ -339,9 +339,9 @@ export default function PlayerStatsModal({ player, onClose }) {
             <button
               className="btn-secondary"
               style={{ width: 'auto', padding: '4px 12px', fontSize: '12px', marginTop: '8px' }}
-              onClick={() => setShowDetailsModal(true)}
+              onClick={() => setShowStatsModal(true)}
             >
-              📊 View Details
+              📊 View Detail
             </button>
           </div>
 
@@ -367,9 +367,9 @@ export default function PlayerStatsModal({ player, onClose }) {
                 <button
                   className="btn-secondary"
                   style={{ width: 'auto', padding: '4px 12px', fontSize: '12px', marginTop: '4px' }}
-                  onClick={() => setShowDetailsModal(true)}
+                  onClick={() => setShowH2hModal(true)}
                 >
-                  View Details ({h2h.length} opponents)
+                  📋 View Detail ({h2h.length} opponents)
                 </button>
               )}
             </div>
@@ -385,17 +385,12 @@ export default function PlayerStatsModal({ player, onClose }) {
             }}>
               {bestPartner && (
                 <div style={{ padding: '2px 0' }}>
-                  🤝 Best Partner: <strong>{bestPartner.name}</strong> ({bestPartner.wins}-{bestPartner.losses} · {Math.round((bestPartner.wins / bestPartner.matches) * 100)}%)
+                  🤝 Best Partner: <strong>{bestPartner.name}</strong> ({bestPartner.wins}-{bestPartner.losses} · {formatWinRate(bestPartner.matches, bestPartner.wins)})
                 </div>
               )}
-              {mostCommon && (!bestPartner || mostCommon.id !== bestPartner.id) && (
+              {mostCommon && (
                 <div style={{ padding: '2px 0' }}>
                   Most Common Partner: <strong>{mostCommon.name}</strong> ({mostCommon.matches} matches)
-                </div>
-              )}
-              {mostCommon && bestPartner && mostCommon.id === bestPartner.id && (
-                <div style={{ padding: '2px 0', color: '#6a7a6a', fontSize: '12px' }}>
-                  ({mostCommon.matches} matches together)
                 </div>
               )}
               {!bestPartner && !mostCommon && (
@@ -408,8 +403,8 @@ export default function PlayerStatsModal({ player, onClose }) {
         </div>
       </div>
 
-      {/* Details Modal */}
-      {showDetailsModal && (
+      {/* Stats Detail Modal */}
+      {showStatsModal && (
         <div style={{
           position: 'fixed',
           top: 0,
@@ -423,7 +418,7 @@ export default function PlayerStatsModal({ player, onClose }) {
           justifyContent: 'center',
           zIndex: 1001,
           padding: '16px',
-        }} onClick={() => setShowDetailsModal(false)}>
+        }} onClick={() => setShowStatsModal(false)}>
           <div style={{
             background: '#ffffff',
             borderRadius: '12px',
@@ -447,7 +442,7 @@ export default function PlayerStatsModal({ player, onClose }) {
                 📊 Career Stats — {player.name}
               </div>
               <button
-                onClick={() => setShowDetailsModal(false)}
+                onClick={() => setShowStatsModal(false)}
                 style={{
                   background: 'none',
                   border: 'none',
@@ -460,12 +455,10 @@ export default function PlayerStatsModal({ player, onClose }) {
               </button>
             </div>
 
-            {/* Career Stats Table */}
             <div style={{
               background: '#f8faf8',
               borderRadius: '8px',
               padding: '12px 16px',
-              marginBottom: '16px',
               overflowX: 'auto',
             }}>
               <table style={{
@@ -509,10 +502,10 @@ export default function PlayerStatsModal({ player, onClose }) {
                   <tr style={{ borderBottom: '1px solid #e8f0e6' }}>
                     <td style={{ padding: '6px 8px', fontWeight: '600', color: '#1a2a1a' }}>Win Rate</td>
                     <td style={{ textAlign: 'center', padding: '6px 8px' }}>
-                      {singles.matches > 0 ? `${Math.round((singles.wins / singles.matches) * 100)}%` : '—'}
+                      {formatWinRate(singles.matches, singles.wins)}
                     </td>
                     <td style={{ textAlign: 'center', padding: '6px 8px' }}>
-                      {doubles.matches > 0 ? `${Math.round((doubles.wins / doubles.matches) * 100)}%` : '—'}
+                      {formatWinRate(doubles.matches, doubles.wins)}
                     </td>
                     <td style={{ textAlign: 'center', padding: '6px 8px', fontWeight: '700', color: '#d4a843' }}>
                       {total.winRate}%
@@ -533,45 +526,99 @@ export default function PlayerStatsModal({ player, onClose }) {
                 </tbody>
               </table>
             </div>
+          </div>
+        </div>
+      )}
 
-            {/* Head-to-Head Full List */}
-            {h2h.length > 0 && (
-              <div>
-                <div style={{ fontWeight: '600', marginBottom: '4px' }}>📋 Head-to-Head</div>
-                <div style={{
-                  background: '#f8faf8',
-                  borderRadius: '8px',
-                  padding: '8px 12px',
-                  maxHeight: '200px',
-                  overflowY: 'auto',
-                }}>
-                  {h2h.map((op, i) => {
-                    const icon = getResultIcon(op.wins, op.losses, op.draws)
-                    return (
-                      <div key={i} style={{
-                        display: 'flex',
-                        justifyContent: 'space-between',
-                        padding: '4px 0',
-                        borderBottom: i < h2h.length - 1 ? '1px solid #e8f0e6' : 'none',
-                        fontSize: '13px',
-                      }}>
-                        <span>vs {op.name}</span>
-                        <span>
-                          <span style={{ fontWeight: '600' }}>
-                            {op.wins}-{op.losses}
-                            {op.draws > 0 && `-${op.draws}`}
-                          </span>
-                          <span style={{ marginLeft: '6px' }}>{icon}</span>
-                          <span style={{ marginLeft: '6px', fontSize: '11px', color: '#6a7a6a' }}>
-                            ({op.matches} matches)
-                          </span>
-                        </span>
-                      </div>
-                    )
-                  })}
-                </div>
+      {/* Head-to-Head Detail Modal */}
+      {showH2hModal && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0,0,0,0.5)',
+          backdropFilter: 'blur(4px)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1001,
+          padding: '16px',
+        }} onClick={() => setShowH2hModal(false)}>
+          <div style={{
+            background: '#ffffff',
+            borderRadius: '12px',
+            padding: '24px',
+            maxWidth: '480px',
+            width: '100%',
+            maxHeight: '90vh',
+            overflowY: 'auto',
+          }} onClick={e => e.stopPropagation()}>
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-between',
+              alignItems: 'center',
+              marginBottom: '16px',
+            }}>
+              <div style={{
+                fontSize: '18px',
+                fontWeight: '700',
+                color: '#1a2a1a',
+              }}>
+                📋 Head-to-Head — {player.name}
               </div>
-            )}
+              <button
+                onClick={() => setShowH2hModal(false)}
+                style={{
+                  background: 'none',
+                  border: 'none',
+                  fontSize: '24px',
+                  cursor: 'pointer',
+                  color: '#6a7a6a',
+                }}
+              >
+                ✕
+              </button>
+            </div>
+
+            <div style={{
+              background: '#f8faf8',
+              borderRadius: '8px',
+              padding: '8px 12px',
+              maxHeight: '400px',
+              overflowY: 'auto',
+            }}>
+              {h2h.map((op, i) => {
+                const icon = getResultIcon(op.wins, op.losses, op.draws)
+                return (
+                  <div key={i} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    padding: '6px 0',
+                    borderBottom: i < h2h.length - 1 ? '1px solid #e8f0e6' : 'none',
+                    fontSize: '13px',
+                  }}>
+                    <span>vs {op.name}</span>
+                    <span>
+                      <span style={{ fontWeight: '600' }}>
+                        {op.wins}-{op.losses}
+                        {op.draws > 0 && `-${op.draws}`}
+                      </span>
+                      <span style={{ marginLeft: '6px' }}>{icon}</span>
+                      <span style={{ marginLeft: '6px', fontSize: '11px', color: '#6a7a6a' }}>
+                        ({op.matches} matches)
+                      </span>
+                    </span>
+                  </div>
+                )
+              })}
+              {h2h.length === 0 && (
+                <div style={{ padding: '8px', color: '#6a7a6a', textAlign: 'center' }}>
+                  No head-to-head matches found.
+                </div>
+              )}
+            </div>
           </div>
         </div>
       )}
