@@ -931,4 +931,36 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
                     <button
                       className="btn-primary"
                       style={{ flex: 1 }}
-                      onClick={handleSave
+                      onClick={handleSaveScore}
+                      disabled={busy}
+                    >
+                      {busy ? 'Saving...' : 'Save Score'}
+                    </button>
+                  </div>
+
+                  <div style={{ marginTop: '8px', textAlign: 'center' }}>
+                    <button
+                      style={{
+                        background: 'none',
+                        border: '1px solid #d0ddd0',
+                        borderRadius: '6px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        color: '#6a7a6a',
+                        cursor: 'pointer',
+                        width: '100%',
+                      }}
+                      onClick={handleStartLive}
+                    >
+                      ⚡ Start Live
+                    </button>
+                  </div>
+                </>
+              )
+            })()}
+          </div>
+        </div>
+      )}
+    </div>
+  )
+}
