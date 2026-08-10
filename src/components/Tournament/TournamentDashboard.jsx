@@ -183,19 +183,15 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         team2Players = match.team2?.filter(p => p && !p.isBye) || []
       }
 
-      // --- 3. Check if match already exists in tennis_matches ---
-      // If editing, we need to find and update existing match
-      const { data: existingMatch } = await supabase
-        .from('tennis_matches')
-        .select('id')
-        .eq('tournament_id', tournament.id)
-        .eq('is_tournament_match', true)
-        .maybeSingle()
+      // --- 3. Check if THIS SPECIFIC match already has a linked row ---
+      // Each match object carries its own match_id once created, so we
+      // never confuse it with any other match in the same tournament.
+      const existingMatchId = match.match_id
 
       let matchData
 
-      if (existingMatch) {
-        // Update existing match
+      if (existingMatchId) {
+        // Update the specific existing match
         const { data, error: updateError } = await supabase
           .from('tennis_matches')
           .update({
@@ -212,7 +208,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
             draw: draw,
             completed_at: new Date().toISOString(),
           })
-          .eq('id', existingMatch.id)
+          .eq('id', existingMatchId)
           .select()
           .single()
 
@@ -265,6 +261,10 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
           })
 
         if (linkError) throw linkError
+
+        // Remember this row's id on the match itself so future edits
+        // to THIS match update it directly instead of guessing.
+        match.match_id = matchData.id
       }
 
       // --- 4. Update tournament rounds ---
