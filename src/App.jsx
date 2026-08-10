@@ -176,7 +176,7 @@ if (showAdmin) {
           src="/logo.png" 
           alt="Batako Tennis Club" 
           style={{ 
-            height: '150px', 
+            height: '120px', 
             width: 'auto',
             maxWidth: '200px',
           }} 
@@ -200,7 +200,7 @@ return (
         src="/logo.png" 
         alt="Batako Tennis Club" 
         style={{ 
-          height: '150px', 
+          height: '120px', 
           width: 'auto',
           maxWidth: '200px',
         }} 
