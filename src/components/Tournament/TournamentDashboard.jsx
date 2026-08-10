@@ -378,7 +378,8 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   const standings = calculateTournamentStandings(
     tournament.players,
     tournament.rounds,
-    tournament.standing_by
+    tournament.standing_by,
+    tournament.type
   )
 
   const currentRoundData = tournament.rounds.find(r => r.round_number === selectedRound)
