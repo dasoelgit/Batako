@@ -444,26 +444,25 @@ export default function App() {
       {tab === 'history' && <History refreshKey={refreshKey} />}
 
       {tab === 'tournament' && (
-        tournamentView === 'list' ? (
-          <TournamentList
-            onSelectTournament={handleSelectTournament}
-            onCreateNew={handleCreateNewTournament}
-            onBack={handleTournamentBack}
-          />
-        ) : tournamentView === 'setup' ? (
-          <TournamentSetup
-            players={players}
-            onTournamentCreated={handleTournamentCreated}
-            onBack={handleTournamentBack}
-          />
-        ) : tournamentView === 'dashboard' && selectedTournamentId ? (
-          <TournamentDashboard
-            tournamentId={selectedTournamentId}
-            onTournamentComplete={handleTournamentComplete}
-            onBack={handleTournamentBack}
-          />
-        ) : null
-      )}
+  tournamentView === 'list' ? (
+    <TournamentList
+      onSelectTournament={handleSelectTournament}
+      onCreateNew={handleCreateNewTournament}
+    />
+  ) : tournamentView === 'setup' ? (
+    <TournamentSetup
+      players={players}
+      onTournamentCreated={handleTournamentCreated}
+      onBack={handleTournamentBack}
+    />
+  ) : tournamentView === 'dashboard' && selectedTournamentId ? (
+    <TournamentDashboard
+      tournamentId={selectedTournamentId}
+      onTournamentComplete={handleTournamentComplete}
+      onBack={handleTournamentBack}
+    />
+  ) : null
+)}
     </div>
   )
 }
