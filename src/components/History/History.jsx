@@ -1,9 +1,10 @@
 // src/components/History/History.jsx
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { supabase } from '../../utils/supabase'
 import { teamLabel, formatJakartaTime } from '../../utils/helpers'
 
 const ITEMS_PER_PAGE = 20
+const DEBOUNCE_DELAY = 300 // ms
 
 export default function History({ refreshKey }) {
   const [matches, setMatches] = useState([])
@@ -16,10 +17,34 @@ export default function History({ refreshKey }) {
   // Filters
   const [dateFilter, setDateFilter] = useState('all')
   const [searchTerm, setSearchTerm] = useState('')
+  const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
+
+  // Debounce search term
+  const debounceTimer = useRef(null)
+
+  useEffect(() => {
+    if (debounceTimer.current) {
+      clearTimeout(debounceTimer.current)
+    }
+    debounceTimer.current = setTimeout(() => {
+      setDebouncedSearchTerm(searchTerm)
+    }, DEBOUNCE_DELAY)
+
+    return () => {
+      if (debounceTimer.current) {
+        clearTimeout(debounceTimer.current)
+      }
+    }
+  }, [searchTerm])
 
   useEffect(() => {
     loadMatches()
-  }, [refreshKey, currentPage, dateFilter, searchTerm])
+  }, [refreshKey, currentPage, dateFilter, debouncedSearchTerm])
+
+  // Reset to page 1 when filter changes (except page changes)
+  useEffect(() => {
+    setCurrentPage(1)
+  }, [dateFilter, debouncedSearchTerm])
 
   const loadMatches = async () => {
     setLoading(true)
@@ -33,6 +58,7 @@ export default function History({ refreshKey }) {
         .order('completed_at', { ascending: false })
 
       // Date filter
+      let cutoffDate = null
       if (dateFilter !== 'all') {
         const now = new Date()
         let cutoff = new Date()
@@ -43,14 +69,8 @@ export default function History({ refreshKey }) {
         } else if (dateFilter === 'month') {
           cutoff = new Date(now.getFullYear(), now.getMonth(), 1)
         }
+        cutoffDate = cutoff
         query = query.gte('completed_at', cutoff.toISOString())
-      }
-
-      // Search by player name
-      if (searchTerm.trim()) {
-        const term = searchTerm.trim().toLowerCase()
-        // We'll filter after fetching because Supabase JSONB search is complex
-        // For now, fetch all matching date filter then filter client-side
       }
 
       // Pagination
@@ -64,35 +84,34 @@ export default function History({ refreshKey }) {
 
       let filteredData = data || []
 
-      // Client-side search filter (since JSONB search is complex)
-      if (searchTerm.trim()) {
-        const term = searchTerm.trim().toLowerCase()
+      // Client-side search filter (using debounced value)
+      if (debouncedSearchTerm.trim()) {
+        const term = debouncedSearchTerm.trim().toLowerCase()
         filteredData = filteredData.filter(m => {
           const allPlayers = [...(m.team1_players || []), ...(m.team2_players || [])]
           return allPlayers.some(p => p.name.toLowerCase().includes(term))
         })
       }
 
-      // Get total count for pagination (adjust for search)
+      // Get total count for pagination
       let totalCount = count || 0
-      if (searchTerm.trim()) {
-        // If searching, we need to count matching items across all pages
-        // Simpler: fetch all IDs and count (acceptable for club use)
-        const { count: searchCount } = await supabase
+      if (debouncedSearchTerm.trim()) {
+        let countQuery = supabase
           .from('tennis_matches')
-          .select('*', { count: 'exact', head: true })
+          .select('*')
           .eq('status', 'completed')
-          .gte('completed_at', dateFilter !== 'all' ? cutoffDate : '1970-01-01')
-        
-        // For simplicity with search, we'll use the filtered data length
-        // and adjust total pages
-        const allMatches = await fetchAllMatchesForSearch(dateFilter)
-        const matched = allMatches.filter(m => {
+          .order('completed_at', { ascending: false })
+
+        if (cutoffDate) {
+          countQuery = countQuery.gte('completed_at', cutoffDate.toISOString())
+        }
+
+        const { data: allData } = await countQuery
+        const matched = (allData || []).filter(m => {
           const allPlayers = [...(m.team1_players || []), ...(m.team2_players || [])]
-          return allPlayers.some(p => p.name.toLowerCase().includes(term))
+          return allPlayers.some(p => p.name.toLowerCase().includes(debouncedSearchTerm.trim().toLowerCase()))
         })
         totalCount = matched.length
-        // Re-filter the current page data
         const start = (currentPage - 1) * ITEMS_PER_PAGE
         const end = start + ITEMS_PER_PAGE
         filteredData = matched.slice(start, end)
@@ -109,65 +128,16 @@ export default function History({ refreshKey }) {
     }
   }
 
-  // Helper to fetch all matches for search (simplified)
-  const fetchAllMatchesForSearch = async (dateFilter) => {
-    let query = supabase
-      .from('tennis_matches')
-      .select('*')
-      .eq('status', 'completed')
-      .order('completed_at', { ascending: false })
-
-    if (dateFilter !== 'all') {
-      const now = new Date()
-      let cutoff = new Date()
-      if (dateFilter === '7days') {
-        cutoff.setDate(now.getDate() - 7)
-      } else if (dateFilter === '30days') {
-        cutoff.setDate(now.getDate() - 30)
-      } else if (dateFilter === 'month') {
-        cutoff = new Date(now.getFullYear(), now.getMonth(), 1)
-      }
-      query = query.gte('completed_at', cutoff.toISOString())
-    }
-
-    const { data } = await query
-    return data || []
-  }
-
-  // Get cutoff date for display
-  const getCutoffDate = () => {
-    const now = new Date()
-    if (dateFilter === '7days') {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 7)
-      return d
-    } else if (dateFilter === '30days') {
-      const d = new Date(now)
-      d.setDate(d.getDate() - 30)
-      return d
-    } else if (dateFilter === 'month') {
-      return new Date(now.getFullYear(), now.getMonth(), 1)
-    }
-    return null
-  }
-
   const handlePageChange = (page) => {
     if (page < 1 || page > totalPages) return
     setCurrentPage(page)
-  }
-
-  const dateFilterLabel = {
-    all: 'All Time',
-    '7days': 'Last 7 Days',
-    '30days': 'Last 30 Days',
-    month: 'This Month',
   }
 
   if (loading && matches.length === 0) {
     return <div className="loading">Loading history…</div>
   }
 
-  const startItem = (currentPage - 1) * ITEMS_PER_PAGE + 1
+  const startItem = totalMatches > 0 ? (currentPage - 1) * ITEMS_PER_PAGE + 1 : 0
   const endItem = Math.min(currentPage * ITEMS_PER_PAGE, totalMatches)
 
   return (
@@ -188,18 +158,18 @@ export default function History({ refreshKey }) {
             value={dateFilter}
             onChange={(e) => {
               setDateFilter(e.target.value)
-              setCurrentPage(1)
             }}
             style={{
-              padding: '8px 12px',
+              padding: '10px 14px',
               borderRadius: '8px',
               border: '1px solid #d0ddd0',
               background: '#ffffff',
               color: '#1a2a1a',
-              fontSize: '13px',
+              fontSize: '14px',
               flex: 1,
-              minWidth: '120px',
+              minWidth: '140px',
               outline: 'none',
+              appearance: 'auto',
             }}
           >
             <option value="all">📅 All Time</option>
@@ -210,21 +180,20 @@ export default function History({ refreshKey }) {
 
           <input
             type="text"
-            placeholder="🔍 Search player..."
+            placeholder="🔍 Search player name..."
             value={searchTerm}
             onChange={(e) => {
               setSearchTerm(e.target.value)
-              setCurrentPage(1)
             }}
             style={{
-              padding: '8px 12px',
+              padding: '10px 14px',
               borderRadius: '8px',
               border: '1px solid #d0ddd0',
               background: '#ffffff',
               color: '#1a2a1a',
-              fontSize: '13px',
+              fontSize: '14px',
               flex: 2,
-              minWidth: '150px',
+              minWidth: '180px',
               outline: 'none',
             }}
           />
