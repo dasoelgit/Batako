@@ -166,7 +166,8 @@ export default function App() {
     )
   }
 
-  // Admin page (overrides everything)
+ 
+// Admin page (overrides everything)
 if (showAdmin) {
   return (
     <div className="app-shell">
@@ -191,46 +192,48 @@ if (showAdmin) {
   )
 }
 
-  return (
+// Main app return — EVERYTHING wrapped in one parent
+return (
+  <div className="app-shell">
     <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
-  <img 
-    src="/logo.png" 
-    alt="Batako Tennis Club" 
-    style={{ 
-      height: '50px', 
-      width: 'auto',
-      maxWidth: '200px',
-    }} 
-  />
-</div>
+      <img 
+        src="/logo.png" 
+        alt="Batako Tennis Club" 
+        style={{ 
+          height: '50px', 
+          width: 'auto',
+          maxWidth: '200px',
+        }} 
+      />
+    </div>
 
-      <div className="tabs">
-        <button
-          className={`tab ${tab === 'live' ? 'active' : ''}`}
-          onClick={() => setTab('live')}
-        >
-          Match
-        </button>
-        <button
-          className={`tab ${tab === 'stats' ? 'active' : ''}`}
-          onClick={() => setTab('stats')}
-        >
-          Stats
-        </button>
-        <button
-          className={`tab ${tab === 'history' ? 'active' : ''}`}
-          onClick={() => setTab('history')}
-        >
-          History
-        </button>
-        <button
-          className={`tab ${tab === 'tournament' ? 'active' : ''}`}
-          onClick={() => setTab('tournament')}
-        >
-          🏆
-        </button>
-      </div>
-
+    <div className="tabs">
+      <button
+        className={`tab ${tab === 'live' ? 'active' : ''}`}
+        onClick={() => setTab('live')}
+      >
+        Match
+      </button>
+      <button
+        className={`tab ${tab === 'stats' ? 'active' : ''}`}
+        onClick={() => setTab('stats')}
+      >
+        Stats
+      </button>
+      <button
+        className={`tab ${tab === 'history' ? 'active' : ''}`}
+        onClick={() => setTab('history')}
+      >
+        History
+      </button>
+      <button
+        className={`tab ${tab === 'tournament' ? 'active' : ''}`}
+        onClick={() => setTab('tournament')}
+      >
+        🏆
+      </button>
+    </div>
+    
       {tab === 'live' && (
         showLiveConfig ? (
           <LiveConfig
