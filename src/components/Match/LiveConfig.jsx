@@ -1,6 +1,6 @@
 // src/components/LiveConfig.jsx
 import { useState } from 'react'
-import { supabase } from '../utils/supabase'
+import { supabase } from '../../utils/supabase'
 
 const GAME_SCORING_OPTIONS = [
   { id: 'standard', label: 'Standard' },
