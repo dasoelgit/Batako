@@ -8,6 +8,7 @@ import {
   generateMexicanoPairings,
 } from '../../utils/tournamentAlgorithms'
 import { teamLabel } from '../../utils/helpers'
+import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
 
 export default function TournamentDashboard({ tournamentId, onTournamentComplete, onBack }) {
   const [tournament, setTournament] = useState(null)
@@ -19,6 +20,28 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   const [score1, setScore1] = useState('')
   const [score2, setScore2] = useState('')
   const [busy, setBusy] = useState(false)
+  const [isAdmin, setIsAdmin] = useState(false)
+  const [showPinModal, setShowPinModal] = useState(false)
+  const [pinInput, setPinInput] = useState('')
+  const [pinError, setPinError] = useState('')
+  const [checkingPin, setCheckingPin] = useState(false)
+
+  // Check if PIN is already in localStorage
+  useEffect(() => {
+    if (tournament) {
+      const savedPin = getPINFromStorage(tournament.id)
+      if (savedPin) {
+        // Verify the saved PIN
+        verifyPIN(savedPin, tournament.admin_pin_hash).then(isValid => {
+          if (isValid) {
+            setIsAdmin(true)
+          } else {
+            removePINFromStorage(tournament.id)
+          }
+        })
+      }
+    }
+  }, [tournament])
 
   useEffect(() => {
     loadTournament()
@@ -66,25 +89,51 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     return players.map(p => p.name).join(' / ')
   }
 
-  // ============================================================
-  // FIXED: Block completed matches from being clicked
-  // ============================================================
   const handleMatchClick = (matchIndex) => {
     const round = tournament.rounds.find(r => r.round_number === selectedRound)
     const match = round.matches[matchIndex]
     
-    // BLOCK: Bye or completed matches
-    if (match.isBye || match.completed) return
+    if (match.isBye) return
     
+    // If already completed, only admin can edit
+    if (match.completed && !isAdmin) {
+      alert('🔒 Only the tournament admin can edit completed matches.')
+      return
+    }
+    
+    // If not completed, anyone can enter score
     setSelectedMatchIndex(matchIndex)
-    setScore1('')
-    setScore2('')
+    setScore1(match.completed ? String(match.score1) : '')
+    setScore2(match.completed ? String(match.score2) : '')
     setShowScoreModal(true)
   }
 
-  // ============================================================
-  // HANDLE SAVE SCORE — Creates match in main table
-  // ============================================================
+  const handleEnterPin = async () => {
+    setPinError('')
+    setCheckingPin(true)
+
+    try {
+      const isValid = await verifyPIN(pinInput, tournament.admin_pin_hash)
+      if (isValid) {
+        setIsAdmin(true)
+        savePINToStorage(tournament.id, pinInput)
+        setShowPinModal(false)
+        setPinInput('')
+      } else {
+        setPinError('Wrong PIN')
+      }
+    } catch (err) {
+      setPinError('Error verifying PIN')
+    } finally {
+      setCheckingPin(false)
+    }
+  }
+
+  const handleLock = () => {
+    setIsAdmin(false)
+    removePINFromStorage(tournament.id)
+  }
+
   const handleSaveScore = async () => {
     setError('')
     setBusy(true)
@@ -134,58 +183,96 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         team2Players = match.team2?.filter(p => p && !p.isBye) || []
       }
 
-      // --- 3. Save to tennis_matches ---
-      const { data: matchData, error: matchError } = await supabase
+      // --- 3. Check if match already exists in tennis_matches ---
+      // If editing, we need to find and update existing match
+      const { data: existingMatch } = await supabase
         .from('tennis_matches')
-        .insert({
-          play_type: tournament.type === 'singles' ? 'singles' : 'doubles',
-          team1_players: team1Players,
-          team2_players: team2Players,
-          status: 'completed',
-          game_scoring: 'standard',
-          set_type: 'best_of',
-          set_value: 1,
-          match_config: 'single',
-          sets: [{
-            set_number: 1,
+        .select('id')
+        .eq('tournament_id', tournament.id)
+        .eq('is_tournament_match', true)
+        .maybeSingle()
+
+      let matchData
+
+      if (existingMatch) {
+        // Update existing match
+        const { data, error: updateError } = await supabase
+          .from('tennis_matches')
+          .update({
+            sets: [{
+              set_number: 1,
+              team1_games: s1,
+              team2_games: s2,
+              winner: winner,
+              tiebreak: null,
+            }],
             team1_games: s1,
             team2_games: s2,
             winner: winner,
-            tiebreak: null,
-          }],
-          current_set: 1,
-          team1_games: s1,
-          team2_games: s2,
-          team1_points: 0,
-          team2_points: 0,
-          winner: winner,
-          draw: draw,
-          tournament_id: tournament.id,
-          is_tournament_match: true,
-          completed_at: new Date().toISOString(),
-        })
-        .select()
-        .single()
+            draw: draw,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', existingMatch.id)
+          .select()
+          .single()
 
-      if (matchError) throw matchError
+        if (updateError) throw updateError
+        matchData = data
+      } else {
+        // Create new match
+        const { data, error: insertError } = await supabase
+          .from('tennis_matches')
+          .insert({
+            play_type: tournament.type === 'singles' ? 'singles' : 'doubles',
+            team1_players: team1Players,
+            team2_players: team2Players,
+            status: 'completed',
+            game_scoring: 'standard',
+            set_type: 'best_of',
+            set_value: 1,
+            match_config: 'single',
+            sets: [{
+              set_number: 1,
+              team1_games: s1,
+              team2_games: s2,
+              winner: winner,
+              tiebreak: null,
+            }],
+            current_set: 1,
+            team1_games: s1,
+            team2_games: s2,
+            team1_points: 0,
+            team2_points: 0,
+            winner: winner,
+            draw: draw,
+            tournament_id: tournament.id,
+            is_tournament_match: true,
+            completed_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
 
-      // --- 4. Link to tournament_matches ---
-      const { error: linkError } = await supabase
-        .from('tennis_tournament_matches')
-        .insert({
-          tournament_id: tournament.id,
-          match_id: matchData.id,
-          round_number: selectedRound,
-        })
+        if (insertError) throw insertError
+        matchData = data
 
-      if (linkError) throw linkError
+        // Link to tournament_matches
+        const { error: linkError } = await supabase
+          .from('tennis_tournament_matches')
+          .insert({
+            tournament_id: tournament.id,
+            match_id: matchData.id,
+            round_number: selectedRound,
+          })
 
-      // --- 5. Update tournament rounds ---
+        if (linkError) throw linkError
+      }
+
+      // --- 4. Update tournament rounds ---
       match.completed = true
       match.score1 = s1
       match.score2 = s2
 
-      // --- 6. Mexicano: generate next round pairings with repeat prevention ---
+      // --- 5. Mexicano: generate next round pairings with repeat prevention ---
       if (tournament.type === 'mexicano') {
         const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
         const nextRoundNumber = selectedRound + 1
@@ -202,7 +289,6 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
             standingsObj[s.id] = { points: s.Pts }
           })
           
-          // Build previous pairings history to avoid repeats
           const previousPairings = []
           for (let r = 0; r < nextRoundNumber - 1; r++) {
             const prevRound = updatedRounds[r]
@@ -238,7 +324,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         }
       }
 
-      // --- 7. Update tournament ---
+      // --- 6. Update tournament ---
       const { error: updateError } = await supabase
         .from('tennis_tournaments')
         .update({ rounds: updatedRounds })
@@ -253,10 +339,10 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       setScore2('')
       setBusy(false)
 
-      // --- 8. Refresh leaderboard ---
+      // --- 7. Refresh leaderboard ---
       window.dispatchEvent(new Event('refreshData'))
 
-      // --- 9. Check if tournament complete ---
+      // --- 8. Check if tournament complete ---
       if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
         await supabase
           .from('tennis_tournaments')
@@ -342,6 +428,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       }}>
         {tournamentLabels[tournament.type] || 'Unknown'} · {tournament.players.length} {tournament.type === 'fixed_partner' ? 'teams' : 'players'} · By {tournament.standing_by === 'win' ? 'Win (3-0)' : 'Point (score-based)'}
         {tournament.status === 'completed' && ' · ✅ Completed'}
+        {isAdmin && ' · 🔓 Admin Mode'}
       </div>
 
       {/* Standings */}
@@ -498,19 +585,19 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
                   display: 'flex',
                   justifyContent: 'space-between',
                   alignItems: 'center',
-                  cursor: isCompleted ? 'default' : 'pointer',
+                  cursor: 'pointer',
                   transition: 'all 0.2s ease',
                   background: isCompleted ? 'rgba(74, 222, 128, 0.08)' : '#ffffff',
-                  opacity: isCompleted ? 0.85 : 1,
+                  opacity: isCompleted && !isAdmin ? 0.85 : 1,
                 }}
                 onMouseEnter={(e) => {
-                  if (!isCompleted) {
-                    e.currentTarget.style.background = '#f8faf8'
+                  if (!isCompleted || isAdmin) {
+                    e.currentTarget.style.background = isCompleted ? 'rgba(74, 222, 128, 0.15)' : '#f8faf8'
                   }
                 }}
                 onMouseLeave={(e) => {
-                  if (!isCompleted) {
-                    e.currentTarget.style.background = '#ffffff'
+                  if (!isCompleted || isAdmin) {
+                    e.currentTarget.style.background = isCompleted ? 'rgba(74, 222, 128, 0.08)' : '#ffffff'
                   }
                 }}
               >
@@ -521,6 +608,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
                   {isCompleted && (
                     <div style={{ fontSize: '13px', color: '#6a7a6a' }}>
                       {match.score1} - {match.score2}
+                      {isAdmin && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f97316' }}>✏️ Tap to edit</span>}
                     </div>
                   )}
                   {!isCompleted && (
@@ -568,6 +656,133 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         </div>
       )}
 
+      {/* Lock/Admin Icon — Bottom Right */}
+      <div style={{
+        display: 'flex',
+        justifyContent: 'flex-end',
+        marginTop: '16px',
+        paddingTop: '12px',
+        borderTop: '1px solid #e8f0e6',
+      }}>
+        <button
+          onClick={isAdmin ? handleLock : () => setShowPinModal(true)}
+          style={{
+            background: 'none',
+            border: 'none',
+            fontSize: '20px',
+            cursor: 'pointer',
+            padding: '4px 8px',
+            color: isAdmin ? '#f97316' : '#6a7a6a',
+          }}
+          title={isAdmin ? 'Lock admin mode' : 'Enter admin PIN'}
+        >
+          {isAdmin ? '🔒' : '🔓'}
+        </button>
+      </div>
+
+      {/* PIN Modal */}
+      {showPinModal && (
+        <div
+          style={{
+            position: 'fixed',
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            background: 'rgba(0,0,0,0.5)',
+            backdropFilter: 'blur(4px)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            zIndex: 1000,
+            padding: '16px',
+          }}
+          onClick={() => {
+            setShowPinModal(false)
+            setPinInput('')
+            setPinError('')
+          }}
+        >
+          <div
+            style={{
+              background: '#ffffff',
+              borderRadius: '12px',
+              padding: '24px',
+              maxWidth: '360px',
+              width: '100%',
+            }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <h3 style={{ margin: '0 0 8px 0', color: '#1a2a1a' }}>🔐 Enter Admin PIN</h3>
+            <p style={{ fontSize: '13px', color: '#6a7a6a', marginBottom: '16px' }}>
+              Enter the PIN for this tournament
+            </p>
+
+            <input
+              type="password"
+              inputMode="numeric"
+              placeholder="4-digit PIN"
+              value={pinInput}
+              onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
+              maxLength={4}
+              style={{
+                width: '100%',
+                padding: '12px',
+                borderRadius: '8px',
+                border: '1px solid #d0ddd0',
+                background: '#ffffff',
+                color: '#1a2a1a',
+                fontSize: '24px',
+                textAlign: 'center',
+                letterSpacing: '8px',
+                outline: 'none',
+                marginBottom: '12px',
+              }}
+              autoFocus
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleEnterPin()
+              }}
+            />
+
+            {pinError && (
+              <div style={{
+                background: 'rgba(214,67,47,0.12)',
+                color: '#c0392b',
+                padding: '8px',
+                borderRadius: '6px',
+                fontSize: '13px',
+                marginBottom: '12px',
+                textAlign: 'center',
+              }}>
+                {pinError}
+              </div>
+            )}
+
+            <div style={{ display: 'flex', gap: '8px' }}>
+              <button
+                className="btn-secondary"
+                style={{ flex: 1 }}
+                onClick={() => {
+                  setShowPinModal(false)
+                  setPinInput('')
+                  setPinError('')
+                }}
+              >
+                Cancel
+              </button>
+              <button
+                className="btn-primary"
+                style={{ flex: 1 }}
+                onClick={handleEnterPin}
+                disabled={pinInput.length !== 4 || checkingPin}
+              >
+                {checkingPin ? 'Checking...' : 'Unlock'}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Score Modal */}
       {showScoreModal && selectedMatchIndex !== null && currentRoundData && (
         <div
@@ -603,7 +818,11 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
             }}
             onClick={(e) => e.stopPropagation()}
           >
-            <h3 style={{ margin: '0 0 16px 0', color: '#1a2a1a' }}>📝 Enter Score</h3>
+            <h3 style={{ margin: '0 0 16px 0', color: '#1a2a1a' }}>
+              {isAdmin && selectedMatchIndex !== null && currentRoundData.matches[selectedMatchIndex]?.completed 
+                ? '✏️ Edit Score' 
+                : '📝 Enter Score'}
+            </h3>
 
             {(() => {
               const match = currentRoundData.matches[selectedMatchIndex]
@@ -712,36 +931,4 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
                     <button
                       className="btn-primary"
                       style={{ flex: 1 }}
-                      onClick={handleSaveScore}
-                      disabled={busy}
-                    >
-                      {busy ? 'Saving...' : 'Save Score'}
-                    </button>
-                  </div>
-
-                  <div style={{ marginTop: '8px', textAlign: 'center' }}>
-                    <button
-                      style={{
-                        background: 'none',
-                        border: '1px solid #d0ddd0',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        color: '#6a7a6a',
-                        cursor: 'pointer',
-                        width: '100%',
-                      }}
-                      onClick={handleStartLive}
-                    >
-                      ⚡ Start Live
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
-      )}
-    </div>
-  )
-}
+                      onClick={handleSave
