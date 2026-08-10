@@ -1,7 +1,7 @@
 // src/components/MatchSetup.jsx
 import { useState } from 'react'
-import { supabase } from '../utils/supabase'
-import { getOrCreatePlayer, teamLabel } from '../utils/helpers'
+import { supabase } from '../../utils/supabase'
+import { getOrCreatePlayer, teamLabel } from '../../utils/helpers'
 import PlayerPicker from './PlayerPicker'
 
 export default function MatchSetup({ players, refreshPlayers, onMatchCreated, onStartLive }) {
