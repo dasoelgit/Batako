@@ -45,10 +45,8 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
     try {
       const player = await getOrCreatePlayer(trimmed)
       
-      // Refresh player list
       if (refreshPlayers) refreshPlayers()
       
-      // Select the player if not already selected
       if (!selectedPlayers.find(p => p.id === player.id)) {
         setSelectedPlayers(prev => [...prev, player])
       }
@@ -259,6 +257,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   })
 
   const isFixedPartner = tournamentType === 'fixed_partner'
+  const maxRounds = getMaxRounds()
 
   return (
     <div style={{
@@ -598,7 +597,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
               Number of Rounds
             </span>
             <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              {Array.from({ length: 10 }, (_, i) => i + 1).map((v) => (
+              {Array.from({ length: maxRounds }, (_, i) => i + 1).map((v) => (
                 <button
                   key={v}
                   style={{
@@ -619,14 +618,30 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
               ))}
             </div>
             <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-              Max rounds: {getMaxRounds()}
+              Max rounds: {maxRounds}
             </div>
+
+            {/* --- WARNING: only when odd players + custom rounds < max --- */}
+            {selectedPlayers.length % 2 !== 0 && totalRounds < maxRounds && (
+              <div style={{
+                fontSize: '12px',
+                color: '#fbbf24',
+                marginTop: '8px',
+                padding: '8px 12px',
+                background: 'rgba(251, 191, 36, 0.1)',
+                borderRadius: '6px',
+                border: '1px solid rgba(251, 191, 36, 0.2)',
+              }}>
+                ⚠️ With {totalRounds} rounds and {selectedPlayers.length} players, not all players will get the same number of byes.
+                Some players may play fewer matches than others.
+              </div>
+            )}
           </div>
         )}
 
         {useFullRoundRobin && (
           <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-            {getMaxRounds()} rounds · {isFixedPartner ? fixedTeams.length : selectedPlayers.length} {isFixedPartner ? 'teams' : 'players'}
+            {maxRounds} rounds · {isFixedPartner ? fixedTeams.length : selectedPlayers.length} {isFixedPartner ? 'teams' : 'players'}
           </div>
         )}
       </div>
