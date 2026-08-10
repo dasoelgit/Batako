@@ -1,5 +1,5 @@
 // src/components/MatchCompleteScreen.jsx
-import { teamLabel } from '../utils/helpers'
+import { teamLabel } from '../../utils/helpers'
 
 export default function MatchCompleteScreen({ match, onContinue }) {
   const { team1_players, team2_players, sets, winner, draw, match_config } = match
