@@ -203,15 +203,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
       padding: '20px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
-      <div style={{
-        fontSize: '20px',
-        fontWeight: '700',
-        color: '#d4a843',
-        textAlign: 'center',
-        marginBottom: '16px',
-      }}>
-        🎾 NEW MATCH
-      </div>
 
       {/* ===== PLAY TYPE ===== */}
       <span style={labelStyle}>Match Type</span>
