@@ -1,6 +1,7 @@
 // src/components/Tournament/TournamentSetup.jsx
 import { useState } from 'react'
 import { supabase } from '../../utils/supabase'
+import { getOrCreatePlayer } from '../../utils/helpers'
 import { 
   generateAmericanoRounds, 
   generateMexicanoRounds,
@@ -9,50 +10,6 @@ import {
 } from '../../utils/tournamentAlgorithms'
 import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
 import PlayerPicker from '../PlayerPicker'
-
-// ============================================================
-// LEVENSHTEIN DISTANCE — For similar name checking
-// ============================================================
-function getLevenshteinDistance(a, b) {
-  const matrix = []
-  for (let i = 0; i <= b.length; i++) {
-    matrix[i] = [i]
-  }
-  for (let j = 0; j <= a.length; j++) {
-    matrix[0][j] = j
-  }
-  for (let i = 1; i <= b.length; i++) {
-    for (let j = 1; j <= a.length; j++) {
-      if (b[i-1] === a[j-1]) {
-        matrix[i][j] = matrix[i-1][j-1]
-      } else {
-        matrix[i][j] = Math.min(
-          matrix[i-1][j-1] + 1,
-          matrix[i][j-1] + 1,
-          matrix[i-1][j] + 1
-        )
-      }
-    }
-  }
-  return matrix[b.length][a.length]
-}
-
-function findSimilarName(newName, existingPlayers, threshold = 2) {
-  const trimmed = newName.trim().toLowerCase()
-  let bestMatch = null
-  let bestDistance = Infinity
-
-  for (const player of existingPlayers) {
-    const playerName = player.name.toLowerCase()
-    const distance = getLevenshteinDistance(trimmed, playerName)
-    if (distance < bestDistance && distance <= threshold) {
-      bestDistance = distance
-      bestMatch = player
-    }
-  }
-
-  return bestMatch
-}
 
 const TOURNAMENT_TYPES = [
   { id: 'americano', label: 'Americano', desc: 'Rotating partners' },
@@ -79,43 +36,22 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [newPlayerName, setNewPlayerName] = useState('')
 
   // ============================================================
-  // ADD PLAYER WITH SIMILAR NAME CHECK
+  // ADD PLAYER — Uses shared getOrCreatePlayer with similarity check
   // ============================================================
   const handleAddPlayer = async () => {
     const trimmed = newPlayerName.trim()
     if (!trimmed) return
 
-    // Check for similar name
-    const similar = findSimilarName(trimmed, players)
-
-    if (similar) {
-      // Show confirmation popup
-      const userChoice = confirm(
-        `⚠️ Similar name found!\n\nYou added: "${trimmed}"\nExisting player: "${similar.name}"\n\nClick "OK" to select "${similar.name}"\nClick "Cancel" to add "${trimmed}" anyway.`
-      )
-
-      if (userChoice) {
-        // Select existing player
-        if (!selectedPlayers.find(p => p.id === similar.id)) {
-          setSelectedPlayers(prev => [...prev, similar])
-        }
-        setNewPlayerName('')
-        return
-      }
-    }
-
-    // Add new player
     try {
-      const { data, error } = await supabase
-        .from('tennis_players')
-        .insert({ name: trimmed })
-        .select()
-        .single()
-
-      if (error) throw error
-
+      const player = await getOrCreatePlayer(trimmed)
+      
+      // Refresh player list
       if (refreshPlayers) refreshPlayers()
-      setSelectedPlayers(prev => [...prev, data])
+      
+      // Select the player if not already selected
+      if (!selectedPlayers.find(p => p.id === player.id)) {
+        setSelectedPlayers(prev => [...prev, player])
+      }
       setNewPlayerName('')
     } catch (err) {
       alert('Error adding player: ' + err.message)
@@ -277,7 +213,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       if (insertError) throw insertError
 
-      // --- Generate and store admin PIN ---
+      // Generate and store admin PIN
       const pin = generatePIN()
       const pinHash = await hashPIN(pin)
 
@@ -288,10 +224,8 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       if (pinError) throw pinError
 
-      // Save PIN to localStorage for this session
       savePINToStorage(data.id, pin)
 
-      // Show PIN to user
       alert(`🏆 Tournament Created!\n\nTournament: ${finalName}\n\n🔑 Admin PIN: ${pin}\n\nSave this PIN. You'll need it to edit tournament matches.`)
 
       onTournamentCreated(data)
@@ -472,7 +406,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
             )}
           </div>
 
-          {/* --- ADD NEW PLAYER --- */}
+          {/* Add New Player */}
           <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
             <input
               type="text"
