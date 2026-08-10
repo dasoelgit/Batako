@@ -394,12 +394,121 @@ function generateMatchesFromPlayers(players) {
 }
 
 // ============================================================
-// CALCULATE TOURNAMENT STANDINGS — FIXED for Fixed Partner
+// CALCULATE TOURNAMENT STANDINGS — FIXED
 // ============================================================
-export function calculateTournamentStandings(players, rounds, standingBy) {
+export function calculateTournamentStandings(players, rounds, standingBy, tournamentType = null) {
   const standings = {}
-  
-  // Initialize standings for all players
+
+  // --- For Fixed Partner: standings are per TEAM ---
+  if (tournamentType === 'fixed_partner') {
+    // Players array contains team objects with player1/player2
+    players.forEach(team => {
+      // Team is stored as { id: 'team_0', name: 'John / Jane', player1: {...}, player2: {...}, isTeam: true }
+      const teamId = team.id || `team_${Object.keys(standings).length}`
+      standings[teamId] = {
+        id: teamId,
+        name: team.name || `${team.player1?.name || '?'} / ${team.player2?.name || '?'}`,
+        player1: team.player1,
+        player2: team.player2,
+        isTeam: true,
+        W: 0,
+        L: 0,
+        T: 0,
+        Pts: 0,
+        games_won: 0,
+        games_lost: 0,
+        matches_played: 0,
+      }
+    })
+
+    // Process all completed matches
+    rounds.forEach(round => {
+      round.matches.forEach(match => {
+        if (!match.completed || match.isBye) return
+        
+        const team1Players = match.team1?.filter(p => p && !p.isBye) || []
+        const team2Players = match.team2?.filter(p => p && !p.isBye) || []
+        
+        if (team1Players.length === 0 || team2Players.length === 0) return
+        
+        // Find which team this is by checking player IDs
+        // For Fixed Partner, match.team1 contains [player1, player2] of the team
+        const team1Ids = team1Players.map(p => p.id).sort().join('-')
+        const team2Ids = team2Players.map(p => p.id).sort().join('-')
+        
+        let team1Key = null
+        let team2Key = null
+        
+        // Find matching team in standings
+        for (const key of Object.keys(standings)) {
+          const team = standings[key]
+          if (!team.isTeam) continue
+          const tIds = [team.player1?.id, team.player2?.id].filter(Boolean).sort().join('-')
+          if (tIds === team1Ids) team1Key = key
+          if (tIds === team2Ids) team2Key = key
+        }
+        
+        if (!team1Key || !team2Key) return
+        
+        const s1 = match.score1 || 0
+        const s2 = match.score2 || 0
+        
+        let result = 'draw'
+        if (s1 > s2) result = 'win1'
+        else if (s2 > s1) result = 'win2'
+        
+        const updateTeam = (key, score, opponentScore, res) => {
+          const s = standings[key]
+          if (!s) return
+          
+          s.matches_played += 1
+          s.games_won += score
+          s.games_lost += opponentScore
+          
+          if (res === 'win') {
+            s.W += 1
+            if (standingBy === 'win') {
+              s.Pts += 3
+            } else {
+              s.Pts += score
+            }
+          } else if (res === 'loss') {
+            s.L += 1
+            if (standingBy === 'win') {
+              s.Pts += 0
+            } else {
+              s.Pts += score
+            }
+          } else {
+            s.T += 1
+            if (standingBy === 'win') {
+              s.Pts += 1
+            } else {
+              s.Pts += score
+            }
+          }
+        }
+        
+        updateTeam(team1Key, s1, s2, result === 'win1' ? 'win' : result === 'win2' ? 'loss' : 'draw')
+        updateTeam(team2Key, s2, s1, result === 'win2' ? 'win' : result === 'win1' ? 'loss' : 'draw')
+      })
+    })
+
+    const result = Object.values(standings).map(s => ({
+      ...s,
+      diff: s.games_won - s.games_lost,
+    }))
+
+    result.sort((a, b) => {
+      if (b.Pts !== a.Pts) return b.Pts - a.Pts
+      if (b.diff !== a.diff) return b.diff - a.diff
+      return b.W - a.W
+    })
+
+    return result
+  }
+
+  // --- For all other types: standings are per individual player ---
   players.forEach(p => {
     // For Fixed Partner, p may be a team object with player1/player2
     if (p.player1 && p.player2) {
@@ -437,7 +546,7 @@ export function calculateTournamentStandings(players, rounds, standingBy) {
       }
     }
   })
-  
+
   // Process all completed matches
   rounds.forEach(round => {
     round.matches.forEach(match => {
@@ -497,18 +606,18 @@ export function calculateTournamentStandings(players, rounds, standingBy) {
       })
     })
   })
-  
+
   const result = Object.values(standings).map(s => ({
     ...s,
     diff: s.games_won - s.games_lost,
   }))
-  
+
   result.sort((a, b) => {
     if (b.Pts !== a.Pts) return b.Pts - a.Pts
     if (b.diff !== a.diff) return b.diff - a.diff
     return b.W - a.W
   })
-  
+
   return result
 }
 
