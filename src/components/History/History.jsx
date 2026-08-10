@@ -4,7 +4,7 @@ import { supabase } from '../../utils/supabase'
 import { teamLabel, formatJakartaTime } from '../../utils/helpers'
 
 const ITEMS_PER_PAGE = 20
-const DEBOUNCE_DELAY = 300 // ms
+const DEBOUNCE_DELAY = 1000 // ms
 
 export default function History({ refreshKey }) {
   const [matches, setMatches] = useState([])
