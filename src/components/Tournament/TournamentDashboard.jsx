@@ -369,10 +369,10 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   if (!tournament) return <div className="empty-state">Tournament not found</div>
 
   const tournamentLabels = {
-    americano: '🇺🇸 Americano',
-    mexicano: '🇲🇽 Mexicano',
-    singles: '🎾 Singles',
-    fixed_partner: '👥 Fixed Partner',
+    americano: 'Americano',
+    mexicano: 'Mexicano',
+    singles: 'Singles',
+    fixed_partner: 'Fixed Partner',
   }
 
   const standings = calculateTournamentStandings(
