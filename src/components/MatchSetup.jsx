@@ -221,8 +221,8 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         </button>
       </div>
 
-      {/* ===== TEAM 1 ===== */}
-      <span style={labelStyle}>Team 1</span>
+      {/* ===== TEAM A ===== */}
+      <span style={labelStyle}>Team A</span>
       <PlayerPicker
         label="Select player"
         players={optionsFor('t1p1')}
@@ -244,8 +244,8 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         />
       )}
 
-      {/* ===== TEAM 2 ===== */}
-      <span style={labelStyle}>Team 2</span>
+      {/* ===== TEAM B ===== */}
+      <span style={labelStyle}>Team B</span>
       <PlayerPicker
         label="Select player"
         players={optionsFor('t2p1')}
