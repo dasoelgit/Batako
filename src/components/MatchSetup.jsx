@@ -6,7 +6,7 @@ import PlayerPicker from './PlayerPicker'
 
 export default function MatchSetup({ players, refreshPlayers, onMatchCreated, onStartLive }) {
   const [matchType, setMatchType] = useState('singles')
-  const [scoringMode, setScoringMode] = useState('manual') // 'manual' | 'live'
+  const [scoringMode, setScoringMode] = useState('manual')
   const [names, setNames] = useState({ t1p1: '', t1p2: '', t2p1: '', t2p2: '' })
   const [newEntry, setNewEntry] = useState({ t1p1: false, t1p2: false, t2p1: false, t2p2: false })
   const [numSets, setNumSets] = useState(1)
@@ -17,6 +17,13 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
   ])
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+
+  const getPlayerLabel = (num) => {
+    if (matchType === 'singles') {
+      return num === 1 ? 'Player A' : 'Player B'
+    }
+    return num === 1 ? 'Team A' : 'Team B'
+  }
 
   const selectSlot = (key) => (val) => {
     if (val === '__new__') {
@@ -72,7 +79,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
     try {
       const { team1, team2 } = await buildTeams()
 
-      // Validate all required sets are filled
       const requiredSets = setScores.slice(0, numSets)
       const allFilled = requiredSets.every((s) => s.team1 !== '' && s.team2 !== '')
       if (!allFilled) {
@@ -81,7 +87,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         return
       }
 
-      // Calculate set winners
       const setResults = requiredSets.map((s) => {
         const t1 = parseInt(s.team1)
         const t2 = parseInt(s.team2)
@@ -90,10 +95,8 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         return { winner: null, team1: t1, team2: t2, draw: true }
       })
 
-      // Calculate match winner
       const wins1 = setResults.filter((r) => r.winner === 1).length
       const wins2 = setResults.filter((r) => r.winner === 2).length
-      const draws = setResults.filter((r) => r.draw === true).length
 
       let matchWinner = null
       let matchDraw = false
@@ -102,7 +105,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
       else if (wins2 > wins1) matchWinner = 2
       else matchDraw = true
 
-      // Build sets data for database
       const setsData = setResults.map((r, i) => ({
         set_number: i + 1,
         team1_games: r.team1,
@@ -139,7 +141,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
 
       if (insertError) throw insertError
 
-      // Reset form
       setNames({ t1p1: '', t1p2: '', t2p1: '', t2p2: '' })
       setNewEntry({ t1p1: false, t1p2: false, t2p1: false, t2p2: false })
       setSetScores([
@@ -163,8 +164,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
 
     try {
       const { team1, team2 } = await buildTeams()
-      
-      // Pass team info to parent to open LiveConfig
       onStartLive({ team1, team2, matchType })
     } catch (err) {
       setError(err.message || 'Something went wrong')
@@ -172,7 +171,6 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
     }
   }
 
-  // Styles
   const labelStyle = {
     fontSize: '11px',
     textTransform: 'uppercase',
@@ -196,6 +194,9 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
     transition: 'all 0.2s ease',
   })
 
+  const label1 = getPlayerLabel(1)
+  const label2 = getPlayerLabel(2)
+
   return (
     <div style={{
       background: '#ffffff',
@@ -203,6 +204,7 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
       padding: '20px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
+      {/* 🎾 NEW MATCH — REMOVED */}
 
       {/* ===== PLAY TYPE ===== */}
       <span style={labelStyle}>Match Type</span>
@@ -221,8 +223,8 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         </button>
       </div>
 
-      {/* ===== TEAM A ===== */}
-      <span style={labelStyle}>Team A</span>
+      {/* ===== TEAM/PLAYER 1 ===== */}
+      <span style={labelStyle}>{label1}</span>
       <PlayerPicker
         label="Select player"
         players={optionsFor('t1p1')}
@@ -244,8 +246,8 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
         />
       )}
 
-      {/* ===== TEAM B ===== */}
-      <span style={labelStyle}>Team B</span>
+      {/* ===== TEAM/PLAYER 2 ===== */}
+      <span style={labelStyle}>{label2}</span>
       <PlayerPicker
         label="Select player"
         players={optionsFor('t2p1')}
@@ -323,7 +325,7 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
                 <input
                   type="text"
                   inputMode="numeric"
-                  placeholder="Team A"
+                  placeholder={label1}
                   value={setScores[i].team1}
                   onChange={updateSetScore(i, 'team1')}
                   style={{
@@ -342,7 +344,7 @@ export default function MatchSetup({ players, refreshPlayers, onMatchCreated, on
                 <input
                   type="text"
                   inputMode="numeric"
-                  placeholder="Team B"
+                  placeholder={label2}
                   value={setScores[i].team2}
                   onChange={updateSetScore(i, 'team2')}
                   style={{
