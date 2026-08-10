@@ -10,10 +10,10 @@ import {
 import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
 
 const TOURNAMENT_TYPES = [
-  { id: 'americano', label: '🇺🇸 Americano', desc: 'Rotating partners' },
-  { id: 'mexicano', label: '🇲🇽 Mexicano', desc: 'Competitive pairing' },
-  { id: 'singles', label: '🎾 Singles', desc: 'Individual matches' },
-  { id: 'fixed_partner', label: '👥 Fixed Partner', desc: 'Partners stay together' },
+  { id: 'americano', label: 'Americano', desc: 'Rotating partners' },
+  { id: 'mexicano', label: 'Mexicano', desc: 'Competitive pairing' },
+  { id: 'singles', label: 'Singles', desc: 'Individual matches' },
+  { id: 'fixed_partner', label: 'Fixed Partner', desc: 'Partners stay together' },
 ]
 
 const POINTS_DISTRIBUTION_OPTIONS = [
