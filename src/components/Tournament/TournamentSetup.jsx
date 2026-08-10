@@ -8,6 +8,51 @@ import {
   generateFixedPartnerRounds
 } from '../../utils/tournamentAlgorithms'
 import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
+import PlayerPicker from '../PlayerPicker'
+
+// ============================================================
+// LEVENSHTEIN DISTANCE — For similar name checking
+// ============================================================
+function getLevenshteinDistance(a, b) {
+  const matrix = []
+  for (let i = 0; i <= b.length; i++) {
+    matrix[i] = [i]
+  }
+  for (let j = 0; j <= a.length; j++) {
+    matrix[0][j] = j
+  }
+  for (let i = 1; i <= b.length; i++) {
+    for (let j = 1; j <= a.length; j++) {
+      if (b[i-1] === a[j-1]) {
+        matrix[i][j] = matrix[i-1][j-1]
+      } else {
+        matrix[i][j] = Math.min(
+          matrix[i-1][j-1] + 1,
+          matrix[i][j-1] + 1,
+          matrix[i-1][j] + 1
+        )
+      }
+    }
+  }
+  return matrix[b.length][a.length]
+}
+
+function findSimilarName(newName, existingPlayers, threshold = 2) {
+  const trimmed = newName.trim().toLowerCase()
+  let bestMatch = null
+  let bestDistance = Infinity
+
+  for (const player of existingPlayers) {
+    const playerName = player.name.toLowerCase()
+    const distance = getLevenshteinDistance(trimmed, playerName)
+    if (distance < bestDistance && distance <= threshold) {
+      bestDistance = distance
+      bestMatch = player
+    }
+  }
+
+  return bestMatch
+}
 
 const TOURNAMENT_TYPES = [
   { id: 'americano', label: 'Americano', desc: 'Rotating partners' },
@@ -21,7 +66,7 @@ const POINTS_DISTRIBUTION_OPTIONS = [
   { id: 'point', label: 'By Point (score-based)' },
 ]
 
-export default function TournamentSetup({ players, onTournamentCreated, onBack }) {
+export default function TournamentSetup({ players, refreshPlayers, onTournamentCreated, onBack }) {
   const [tournamentType, setTournamentType] = useState('americano')
   const [tournamentName, setTournamentName] = useState('')
   const [selectedPlayers, setSelectedPlayers] = useState([])
@@ -31,6 +76,51 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
   const [useFullRoundRobin, setUseFullRoundRobin] = useState(true)
   const [busy, setBusy] = useState(false)
   const [error, setError] = useState('')
+  const [newPlayerName, setNewPlayerName] = useState('')
+
+  // ============================================================
+  // ADD PLAYER WITH SIMILAR NAME CHECK
+  // ============================================================
+  const handleAddPlayer = async () => {
+    const trimmed = newPlayerName.trim()
+    if (!trimmed) return
+
+    // Check for similar name
+    const similar = findSimilarName(trimmed, players)
+
+    if (similar) {
+      // Show confirmation popup
+      const userChoice = confirm(
+        `⚠️ Similar name found!\n\nYou added: "${trimmed}"\nExisting player: "${similar.name}"\n\nClick "OK" to select "${similar.name}"\nClick "Cancel" to add "${trimmed}" anyway.`
+      )
+
+      if (userChoice) {
+        // Select existing player
+        if (!selectedPlayers.find(p => p.id === similar.id)) {
+          setSelectedPlayers(prev => [...prev, similar])
+        }
+        setNewPlayerName('')
+        return
+      }
+    }
+
+    // Add new player
+    try {
+      const { data, error } = await supabase
+        .from('tennis_players')
+        .insert({ name: trimmed })
+        .select()
+        .single()
+
+      if (error) throw error
+
+      if (refreshPlayers) refreshPlayers()
+      setSelectedPlayers(prev => [...prev, data])
+      setNewPlayerName('')
+    } catch (err) {
+      alert('Error adding player: ' + err.message)
+    }
+  }
 
   const togglePlayer = (player) => {
     setSelectedPlayers(prev => {
@@ -244,17 +334,17 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
       <button
-  className="btn-secondary"
-  onClick={onBack}
-  style={{ 
-    width: 'auto', 
-    padding: '8px 16px', 
-    fontSize: '13px',
-    marginBottom: '12px',
-  }}
->
-  ← Back
-</button>
+        className="btn-secondary"
+        onClick={onBack}
+        style={{ 
+          width: 'auto', 
+          padding: '8px 16px', 
+          fontSize: '13px',
+          marginBottom: '12px',
+        }}
+      >
+        ← Back
+      </button>
 
       <div style={{
         fontSize: '20px',
@@ -348,7 +438,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
             border: '1px solid #d0ddd0',
             borderRadius: '8px',
             padding: '8px',
-            marginBottom: '16px',
+            marginBottom: '8px',
             background: '#f8faf8',
           }}>
             {players.map((player) => {
@@ -377,9 +467,41 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
             })}
             {players.length === 0 && (
               <div style={{ padding: '8px', color: '#6a7a6a', textAlign: 'center' }}>
-                No players available. Add players in Admin panel.
+                No players available. Add a player below.
               </div>
             )}
+          </div>
+
+          {/* --- ADD NEW PLAYER --- */}
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            <input
+              type="text"
+              placeholder="Add new player..."
+              value={newPlayerName}
+              onChange={(e) => setNewPlayerName(e.target.value)}
+              style={{
+                flex: 1,
+                padding: '8px 12px',
+                borderRadius: '6px',
+                border: '1px solid #d0ddd0',
+                background: '#ffffff',
+                color: '#1a2a1a',
+                fontSize: '14px',
+                outline: 'none',
+                marginBottom: 0,
+              }}
+              onKeyDown={(e) => {
+                if (e.key === 'Enter') handleAddPlayer()
+              }}
+            />
+            <button
+              className="btn-primary"
+              style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }}
+              onClick={handleAddPlayer}
+              disabled={!newPlayerName.trim()}
+            >
+              Add
+            </button>
           </div>
         </>
       )}
