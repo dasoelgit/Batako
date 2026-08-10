@@ -6,7 +6,6 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
   const [tournaments, setTournaments] = useState([])
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState('')
-  const [deletingId, setDeletingId] = useState(null)
 
   useEffect(() => {
     loadTournaments()
@@ -37,62 +36,13 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
   }
 
   const getTypeLabel = (type) => {
-    return type === 'americano' ? '🇺🇸 Americano' : '🇲🇽 Mexicano'
-  }
-
-  // ============================================================
-  // HANDLE DELETE — Also deletes all tournament matches
-  // ============================================================
-  const handleDelete = async (id, name) => {
-    if (!confirm(`Delete "${name}"? This will also delete all matches in this tournament.`)) return
-
-    setDeletingId(id)
-    try {
-      // 1. Get all match IDs linked to this tournament
-      const { data: links, error: linkFetchError } = await supabase
-        .from('tennis_tournament_matches')
-        .select('match_id')
-        .eq('tournament_id', id)
-
-      if (linkFetchError) throw linkFetchError
-
-      // 2. Delete all matches from tennis_matches
-      if (links && links.length > 0) {
-        const matchIds = links.map(l => l.match_id)
-        const { error: matchDeleteError } = await supabase
-          .from('tennis_matches')
-          .delete()
-          .in('id', matchIds)
-
-        if (matchDeleteError) throw matchDeleteError
-      }
-
-      // 3. Delete tournament_matches links
-      const { error: linkDeleteError } = await supabase
-        .from('tennis_tournament_matches')
-        .delete()
-        .eq('tournament_id', id)
-
-      if (linkDeleteError) throw linkDeleteError
-
-      // 4. Delete the tournament
-      const { error: deleteError } = await supabase
-        .from('tennis_tournaments')
-        .delete()
-        .eq('id', id)
-
-      if (deleteError) throw deleteError
-
-      // 5. Refresh leaderboard
-      window.dispatchEvent(new Event('refreshData'))
-
-      // 6. Reload list
-      await loadTournaments()
-    } catch (err) {
-      alert('Error deleting tournament: ' + err.message)
-    } finally {
-      setDeletingId(null)
+    const labels = {
+      americano: '🇺🇸 Americano',
+      mexicano: '🇲🇽 Mexicano',
+      singles: '🎾 Singles',
+      fixed_partner: '👥 Fixed Partner',
     }
+    return labels[type] || type
   }
 
   if (loading) return <div className="loading">Loading tournaments...</div>
@@ -107,7 +57,23 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
       padding: '20px',
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
-      
+      <button
+        onClick={onBack}
+        style={{
+          background: 'none',
+          border: 'none',
+          color: '#6a7a6a',
+          fontSize: '14px',
+          cursor: 'pointer',
+          padding: '0 0 12px 0',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '4px',
+        }}
+      >
+        ← Back
+      </button>
+
       <div style={{
         display: 'flex',
         justifyContent: 'space-between',
@@ -172,16 +138,14 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
               }}
               onMouseEnter={(e) => e.currentTarget.style.background = '#f8faf8'}
               onMouseLeave={(e) => e.currentTarget.style.background = '#ffffff'}
+              onClick={() => onSelectTournament(t.id)}
             >
-              <div
-                style={{ flex: 1 }}
-                onClick={() => onSelectTournament(t.id)}
-              >
+              <div>
                 <div style={{ fontWeight: '600' }}>
                   {t.name}
                 </div>
                 <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
-                  {getTypeLabel(t.type)} · {t.players.length} players · Round {t.current_round} of {t.total_rounds}
+                  {getTypeLabel(t.type)} · {t.players.length} {t.type === 'fixed_partner' ? 'teams' : 'players'} · Round {t.current_round} of {t.total_rounds}
                 </div>
                 <div style={{ fontSize: '11px', color: '#6a7a6a' }}>
                   Started: {formatDate(t.created_at)}
@@ -196,24 +160,7 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
                     onSelectTournament(t.id)
                   }}
                 >
-                  Continue →
-                </button>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#c0392b',
-                    fontSize: '16px',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(t.id, t.name)
-                  }}
-                  disabled={deletingId === t.id}
-                >
-                  {deletingId === t.id ? '...' : '✕'}
+                  View →
                 </button>
               </div>
             </div>
@@ -246,48 +193,34 @@ export default function TournamentList({ onSelectTournament, onCreateNew, onBack
                 justifyContent: 'space-between',
                 alignItems: 'center',
                 background: '#f8faf8',
+                cursor: 'pointer',
+                transition: 'all 0.2s ease',
               }}
+              onMouseEnter={(e) => e.currentTarget.style.background = '#f0f5f0'}
+              onMouseLeave={(e) => e.currentTarget.style.background = '#f8faf8'}
+              onClick={() => onSelectTournament(t.id)}
             >
-              <div
-                style={{ flex: 1 }}
-                onClick={() => onSelectTournament(t.id)}
-              >
+              <div>
                 <div style={{ fontWeight: '600' }}>
                   {t.name}
                 </div>
                 <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
-                  {getTypeLabel(t.type)} · {t.players.length} players
+                  {getTypeLabel(t.type)} · {t.players.length} {t.type === 'fixed_partner' ? 'teams' : 'players'}
                 </div>
                 <div style={{ fontSize: '11px', color: '#6a7a6a' }}>
                   Completed: {formatDate(t.completed_at)}
                 </div>
               </div>
-              <div style={{ display: 'flex', gap: '6px', alignItems: 'center' }}>
-                <button
-                  className="btn-secondary"
-                  style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-                  onClick={() => onSelectTournament(t.id)}
-                >
-                  View Results →
-                </button>
-                <button
-                  style={{
-                    background: 'none',
-                    border: 'none',
-                    color: '#c0392b',
-                    fontSize: '16px',
-                    cursor: 'pointer',
-                    padding: '4px 8px',
-                  }}
-                  onClick={(e) => {
-                    e.stopPropagation()
-                    handleDelete(t.id, t.name)
-                  }}
-                  disabled={deletingId === t.id}
-                >
-                  {deletingId === t.id ? '...' : '✕'}
-                </button>
-              </div>
+              <button
+                className="btn-secondary"
+                style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
+                onClick={(e) => {
+                  e.stopPropagation()
+                  onSelectTournament(t.id)
+                }}
+              >
+                View Results →
+              </button>
             </div>
           ))}
         </>
