@@ -7,6 +7,7 @@ import {
   generateSinglesRounds,
   generateFixedPartnerRounds
 } from '../../utils/tournamentAlgorithms'
+import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
 
 const TOURNAMENT_TYPES = [
   { id: 'americano', label: '🇺🇸 Americano', desc: 'Rotating partners' },
@@ -168,6 +169,7 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
         rounds = generateMexicanoRounds(selectedPlayers, numRounds)
       }
 
+      // Insert tournament
       const { data, error: insertError } = await supabase
         .from('tennis_tournaments')
         .insert({
@@ -184,6 +186,23 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
         .single()
 
       if (insertError) throw insertError
+
+      // --- Generate and store admin PIN ---
+      const pin = generatePIN()
+      const pinHash = await hashPIN(pin)
+
+      const { error: pinError } = await supabase
+        .from('tennis_tournaments')
+        .update({ admin_pin_hash: pinHash })
+        .eq('id', data.id)
+
+      if (pinError) throw pinError
+
+      // Save PIN to localStorage for this session
+      savePINToStorage(data.id, pin)
+
+      // Show PIN to user
+      alert(`🏆 Tournament Created!\n\nTournament: ${finalName}\n\n🔑 Admin PIN: ${pin}\n\nSave this PIN. You'll need it to edit tournament matches.`)
 
       onTournamentCreated(data)
     } catch (err) {
