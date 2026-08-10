@@ -244,21 +244,17 @@ export default function TournamentSetup({ players, onTournamentCreated, onBack }
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
       <button
-        onClick={onBack}
-        style={{
-          background: 'none',
-          border: 'none',
-          color: '#6a7a6a',
-          fontSize: '14px',
-          cursor: 'pointer',
-          padding: '0 0 12px 0',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '4px',
-        }}
-      >
-        ← Back
-      </button>
+  className="btn-secondary"
+  onClick={onBack}
+  style={{ 
+    width: 'auto', 
+    padding: '8px 16px', 
+    fontSize: '13px',
+    marginBottom: '12px',
+  }}
+>
+  ← Back
+</button>
 
       <div style={{
         fontSize: '20px',
