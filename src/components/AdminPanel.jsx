@@ -1,6 +1,7 @@
 // src/components/AdminPanel.jsx
 import { useState, useEffect } from 'react'
 import { supabase } from '../utils/supabase'
+import { teamLabel, formatJakartaTime } from '../utils/helpers'
 
 // ============================================================
 // ADMIN PLAYERS
@@ -82,6 +83,342 @@ function AdminPlayers({ players, refreshPlayers }) {
 }
 
 // ============================================================
+// ADMIN MATCHES
+// ============================================================
+function AdminMatches({ onDataChanged }) {
+  const [matches, setMatches] = useState([])
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [editingId, setEditingId] = useState(null)
+  const [editScores, setEditScores] = useState([])
+  const [busy, setBusy] = useState(false)
+
+  useEffect(() => {
+    loadMatches()
+  }, [])
+
+  const loadMatches = async () => {
+    setLoading(true)
+    setError('')
+    try {
+      // Only load regular matches (not tournament matches)
+      const { data, error } = await supabase
+        .from('tennis_matches')
+        .select('*')
+        .eq('status', 'completed')
+        .eq('is_tournament_match', false)
+        .order('completed_at', { ascending: false })
+        .limit(50)
+
+      if (error) throw error
+      setMatches(data || [])
+    } catch (err) {
+      setError(err.message)
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  const formatDate = (dateStr) => {
+    if (!dateStr) return ''
+    const d = new Date(dateStr)
+    return d.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+  }
+
+  const getSetsDisplay = (sets) => {
+    if (!sets || sets.length === 0) return 'No sets'
+    return sets.map(s => `${s.team1_games}-${s.team2_games}`).join(', ')
+  }
+
+  const startEdit = (match) => {
+    setEditingId(match.id)
+    // Initialize edit scores from existing sets
+    if (match.sets && match.sets.length > 0) {
+      setEditScores(match.sets.map(s => ({
+        team1: String(s.team1_games),
+        team2: String(s.team2_games),
+      })))
+    } else {
+      setEditScores([{ team1: '', team2: '' }])
+    }
+  }
+
+  const cancelEdit = () => {
+    setEditingId(null)
+    setEditScores([])
+  }
+
+  const updateEditScore = (index, side, value) => {
+    const newScores = [...editScores]
+    newScores[index] = { ...newScores[index], [side]: value }
+    setEditScores(newScores)
+  }
+
+  const saveEdit = async (match) => {
+    setBusy(true)
+    setError('')
+
+    try {
+      // Validate scores
+      const parsedSets = editScores.map(s => ({
+        team1_games: parseInt(s.team1) || 0,
+        team2_games: parseInt(s.team2) || 0,
+      }))
+
+      // Calculate winner for each set and overall
+      const setsWithWinner = parsedSets.map((s, i) => {
+        let winner = null
+        if (s.team1_games > s.team2_games) winner = 1
+        else if (s.team2_games > s.team1_games) winner = 2
+        return {
+          set_number: i + 1,
+          team1_games: s.team1_games,
+          team2_games: s.team2_games,
+          winner: winner,
+          tiebreak: null,
+        }
+      })
+
+      // Calculate match winner
+      const wins1 = setsWithWinner.filter(s => s.winner === 1).length
+      const wins2 = setsWithWinner.filter(s => s.winner === 2).length
+      let matchWinner = null
+      let draw = false
+      if (wins1 > wins2) matchWinner = 1
+      else if (wins2 > wins1) matchWinner = 2
+      else draw = true
+
+      // Update match
+      const { error: updateError } = await supabase
+        .from('tennis_matches')
+        .update({
+          sets: setsWithWinner,
+          winner: matchWinner,
+          draw: draw,
+          team1_games: parsedSets.reduce((sum, s) => sum + s.team1_games, 0),
+          team2_games: parsedSets.reduce((sum, s) => sum + s.team2_games, 0),
+        })
+        .eq('id', match.id)
+
+      if (updateError) throw updateError
+
+      setEditingId(null)
+      setEditScores([])
+      await loadMatches()
+      if (onDataChanged) onDataChanged()
+    } catch (err) {
+      setError('Failed to save: ' + err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  const handleDelete = async (match) => {
+    if (!confirm(`Delete match: ${teamLabel(match.team1_players)} vs ${teamLabel(match.team2_players)}?`)) return
+
+    setBusy(true)
+    try {
+      const { error } = await supabase
+        .from('tennis_matches')
+        .delete()
+        .eq('id', match.id)
+
+      if (error) throw error
+
+      await loadMatches()
+      if (onDataChanged) onDataChanged()
+    } catch (err) {
+      alert('Error deleting match: ' + err.message)
+    } finally {
+      setBusy(false)
+    }
+  }
+
+  if (loading) return <div className="loading">Loading matches...</div>
+
+  return (
+    <div className="card">
+      <span className="field-label">Regular Matches</span>
+
+      {error && (
+        <div style={{
+          background: 'rgba(214,67,47,0.12)',
+          color: '#c0392b',
+          padding: '10px',
+          borderRadius: '6px',
+          fontSize: '13px',
+          marginBottom: '12px',
+          textAlign: 'center',
+        }}>
+          ❌ {error}
+        </div>
+      )}
+
+      {matches.length === 0 ? (
+        <div style={{ padding: '20px', textAlign: 'center', color: '#6a7a6a' }}>
+          No regular matches found.
+        </div>
+      ) : (
+        matches.map((m) => {
+          const isEditing = editingId === m.id
+          const matchSets = m.sets || []
+          const numSets = matchSets.length
+
+          return (
+            <div
+              key={m.id}
+              style={{
+                borderBottom: '1px solid #e8f0e6',
+                padding: '12px 0',
+              }}
+            >
+              {!isEditing ? (
+                // View mode
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '14px' }}>
+                    {teamLabel(m.team1_players)} vs {teamLabel(m.team2_players)}
+                  </div>
+                  <div style={{ fontSize: '13px', color: '#6a7a6a' }}>
+                    {getSetsDisplay(matchSets)}
+                    {m.draw && <span style={{ marginLeft: '8px', color: '#d4a843' }}>⚖️ DRAW</span>}
+                  </div>
+                  <div style={{ fontSize: '11px', color: '#6a7a6a' }}>
+                    {formatDate(m.completed_at)}
+                  </div>
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '6px' }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ width: 'auto', padding: '4px 12px', fontSize: '11px' }}
+                      onClick={() => startEdit(m)}
+                    >
+                      ✏️ Edit
+                    </button>
+                    <button
+                      className="btn-secondary"
+                      style={{ width: 'auto', padding: '4px 12px', fontSize: '11px', color: '#c0392b', borderColor: '#c0392b' }}
+                      onClick={() => handleDelete(m)}
+                      disabled={busy}
+                    >
+                      🗑️ Delete
+                    </button>
+                  </div>
+                </div>
+              ) : (
+                // Edit mode
+                <div>
+                  <div style={{ fontWeight: '600', fontSize: '14px', marginBottom: '8px' }}>
+                    ✏️ {teamLabel(m.team1_players)} vs {teamLabel(m.team2_players)}
+                  </div>
+
+                  {editScores.map((score, idx) => (
+                    <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'center', marginBottom: '6px' }}>
+                      <span style={{ fontSize: '12px', color: '#6a7a6a', minWidth: '40px' }}>
+                        Set {idx + 1}
+                      </span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={score.team1}
+                        onChange={(e) => updateEditScore(idx, 'team1', e.target.value.replace(/[^0-9]/g, ''))}
+                        style={{
+                          width: '50px',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #d0ddd0',
+                          textAlign: 'center',
+                          fontSize: '14px',
+                        }}
+                      />
+                      <span style={{ color: '#6a7a6a' }}>vs</span>
+                      <input
+                        type="text"
+                        inputMode="numeric"
+                        value={score.team2}
+                        onChange={(e) => updateEditScore(idx, 'team2', e.target.value.replace(/[^0-9]/g, ''))}
+                        style={{
+                          width: '50px',
+                          padding: '4px 8px',
+                          borderRadius: '4px',
+                          border: '1px solid #d0ddd0',
+                          textAlign: 'center',
+                          fontSize: '14px',
+                        }}
+                      />
+                      {idx === editScores.length - 1 && (
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#4ade80',
+                            fontSize: '16px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => setEditScores([...editScores, { team1: '', team2: '' }])}
+                        >
+                          +
+                        </button>
+                      )}
+                      {editScores.length > 1 && (
+                        <button
+                          style={{
+                            background: 'none',
+                            border: 'none',
+                            color: '#c0392b',
+                            fontSize: '14px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={() => {
+                            const newScores = editScores.filter((_, i) => i !== idx)
+                            setEditScores(newScores)
+                          }}
+                        >
+                          ✕
+                        </button>
+                      )}
+                    </div>
+                  ))}
+
+                  {error && (
+                    <div style={{
+                      background: 'rgba(214,67,47,0.12)',
+                      color: '#c0392b',
+                      padding: '6px',
+                      borderRadius: '4px',
+                      fontSize: '12px',
+                      marginBottom: '8px',
+                    }}>
+                      {error}
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', gap: '8px', marginTop: '8px' }}>
+                    <button
+                      className="btn-secondary"
+                      style={{ width: 'auto', padding: '4px 12px', fontSize: '11px' }}
+                      onClick={cancelEdit}
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      className="btn-primary"
+                      style={{ width: 'auto', padding: '4px 12px', fontSize: '11px' }}
+                      onClick={() => saveEdit(m)}
+                      disabled={busy}
+                    >
+                      {busy ? 'Saving...' : '💾 Save'}
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          )
+        })
+      )}
+    </div>
+  )
+}
+
+// ============================================================
 // ADMIN TOURNAMENTS
 // ============================================================
 function AdminTournaments({ onDataChanged }) {
@@ -133,7 +470,6 @@ function AdminTournaments({ onDataChanged }) {
 
     setDeletingId(id)
     try {
-      // 1. Get all match IDs linked to this tournament
       const { data: links, error: linkFetchError } = await supabase
         .from('tennis_tournament_matches')
         .select('match_id')
@@ -141,7 +477,6 @@ function AdminTournaments({ onDataChanged }) {
 
       if (linkFetchError) throw linkFetchError
 
-      // 2. Delete all matches from tennis_matches
       if (links && links.length > 0) {
         const matchIds = links.map(l => l.match_id)
         const { error: matchDeleteError } = await supabase
@@ -152,7 +487,6 @@ function AdminTournaments({ onDataChanged }) {
         if (matchDeleteError) throw matchDeleteError
       }
 
-      // 3. Delete tournament_matches links
       const { error: linkDeleteError } = await supabase
         .from('tennis_tournament_matches')
         .delete()
@@ -160,7 +494,6 @@ function AdminTournaments({ onDataChanged }) {
 
       if (linkDeleteError) throw linkDeleteError
 
-      // 4. Delete the tournament
       const { error: deleteError } = await supabase
         .from('tennis_tournaments')
         .delete()
@@ -168,7 +501,6 @@ function AdminTournaments({ onDataChanged }) {
 
       if (deleteError) throw deleteError
 
-      // 5. Refresh
       await loadTournaments()
       if (onDataChanged) onDataChanged()
     } catch (err) {
@@ -183,7 +515,7 @@ function AdminTournaments({ onDataChanged }) {
   return (
     <div className="card">
       <span className="field-label">All Tournaments</span>
-      
+
       {error && (
         <div style={{
           background: 'rgba(214,67,47,0.12)',
@@ -218,7 +550,7 @@ function AdminTournaments({ onDataChanged }) {
               <div style={{ fontWeight: '600', fontSize: '14px' }}>{t.name}</div>
               <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
                 {getTypeLabel(t.type)} · {t.players.length} {t.type === 'fixed_partner' ? 'teams' : 'players'}
-                {t.status === 'active' 
+                {t.status === 'active'
                   ? ` · Round ${t.current_round} of ${t.total_rounds}`
                   : ' · ✅ Completed'}
               </div>
@@ -276,16 +608,17 @@ export default function AdminPanel({ players, refreshPlayers, onDataChanged, onB
         <button className={tab === 'players' ? 'active' : ''} onClick={() => setTab('players')}>
           Players
         </button>
+        <button className={tab === 'matches' ? 'active' : ''} onClick={() => setTab('matches')}>
+          Matches
+        </button>
         <button className={tab === 'tournaments' ? 'active' : ''} onClick={() => setTab('tournaments')}>
           Tournaments
         </button>
       </div>
 
-      {tab === 'players' ? (
-        <AdminPlayers players={players} refreshPlayers={refreshPlayers} />
-      ) : (
-        <AdminTournaments onDataChanged={onDataChanged} />
-      )}
+      {tab === 'players' && <AdminPlayers players={players} refreshPlayers={refreshPlayers} />}
+      {tab === 'matches' && <AdminMatches onDataChanged={onDataChanged} />}
+      {tab === 'tournaments' && <AdminTournaments onDataChanged={onDataChanged} />}
     </div>
   )
 }
