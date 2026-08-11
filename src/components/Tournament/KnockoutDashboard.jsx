@@ -246,54 +246,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           }
         }
       }
-            // Determine winner (and loser, in case a bronze match needs them)
-      let winner = null
-      let loser = null
-      let draw = false
-      if (s1 > s2) {
-        // Team 1 wins
-        if (isDoubles && match.team1.length > 0) {
-          winner = {
-            id: match.team1.map(p => p.id).join('-'),
-            name: match.team1.map(p => p.name).join(' / '),
-            players: match.team1,
-          }
-        } else {
-          winner = match.team1[0]
-        }
-        if (isDoubles && match.team2.length > 0) {
-          loser = {
-            id: match.team2.map(p => p.id).join('-'),
-            name: match.team2.map(p => p.name).join(' / '),
-            players: match.team2,
-          }
-        } else {
-          loser = match.team2[0]
-        }
-      } else if (s2 > s1) {
-        // Team 2 wins
-        if (isDoubles && match.team2.length > 0) {
-          winner = {
-            id: match.team2.map(p => p.id).join('-'),
-            name: match.team2.map(p => p.name).join(' / '),
-            players: match.team2,
-          }
-        } else {
-          winner = match.team2[0]
-        }
-        if (isDoubles && match.team1.length > 0) {
-          loser = {
-            id: match.team1.map(p => p.id).join('-'),
-            name: match.team1.map(p => p.name).join(' / '),
-            players: match.team1,
-          }
-        } else {
-          loser = match.team1[0]
-        }
-      } else {
-        draw = true
-      }
-
+            
       // Update bronze match with the loser, if this was a semifinal
       const bronzeRound = updatedRounds.find(r => r.isBronze)
       if (bronzeRound && loser && round.round_name === 'Semifinal') {
