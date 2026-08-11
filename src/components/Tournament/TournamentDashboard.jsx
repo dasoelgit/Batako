@@ -11,6 +11,10 @@ import { teamLabel } from '../../utils/helpers'
 import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
 import KnockoutDashboard from './KnockoutDashboard'
 import ScoreModal from './ScoreModal'
+import StandingsTable from './TournamentDashboard/StandingsTable'
+import RoundTabs from './TournamentDashboard/RoundTabs'
+import MatchList from './TournamentDashboard/MatchList'
+import AdminPinModal from './TournamentDashboard/AdminPinModal'
 
 export default function TournamentDashboard({ tournamentId, onTournamentComplete, onBack }) {
   const [tournament, setTournament] = useState(null)
@@ -439,205 +443,28 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         }}>
           📊 Standings
         </span>
-        <div style={{
-          background: '#f8faf8',
-          borderRadius: '8px',
-          padding: '8px 12px',
-        }}>
-          <div style={{
-            display: 'grid',
-            gridTemplateColumns: '30px 1fr 30px 30px 30px 40px 50px',
-            gap: '4px',
-            padding: '6px 0',
-            borderBottom: '1px solid #d0ddd0',
-            fontSize: '10px',
-            color: '#6a7a6a',
-            textTransform: 'uppercase',
-            fontWeight: '600',
-            letterSpacing: '0.05em',
-          }}>
-            <div>#</div>
-            <div>Player</div>
-            <div style={{ textAlign: 'center' }}>W</div>
-            <div style={{ textAlign: 'center' }}>L</div>
-            <div style={{ textAlign: 'center' }}>T</div>
-            <div style={{ textAlign: 'center' }}>Pts</div>
-            <div style={{ textAlign: 'right' }}>+/-</div>
-          </div>
-
-          {standings.map((s, i) => {
-            const diff = s.diff || 0
-            const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`
-
-            return (
-              <div key={s.id} style={{
-                display: 'grid',
-                gridTemplateColumns: '30px 1fr 30px 30px 30px 40px 50px',
-                gap: '4px',
-                padding: '6px 0',
-                borderBottom: i < standings.length - 1 ? '1px solid #e8f0e6' : 'none',
-                alignItems: 'center',
-                fontSize: '13px',
-              }}>
-                <div style={{
-                  fontWeight: '700',
-                  color: i === 0 ? '#d4a843' : i === 1 ? '#a8a8a8' : i === 2 ? '#cd7f32' : '#6a7a6a',
-                }}>
-                  {medal}
-                </div>
-                <div style={{ fontWeight: '600' }}>{s.name}</div>
-                <div style={{ textAlign: 'center', fontWeight: '600' }}>{s.W}</div>
-                <div style={{ textAlign: 'center', color: '#6a7a6a' }}>{s.L}</div>
-                <div style={{ textAlign: 'center', color: '#d4a843' }}>{s.T}</div>
-                <div style={{ textAlign: 'center', fontWeight: '700', color: '#d4a843' }}>{s.Pts}</div>
-                <div style={{
-                  textAlign: 'right',
-                  fontWeight: '600',
-                  color: diff > 0 ? '#4ade80' : diff < 0 ? '#f87171' : '#6a7a6a',
-                }}>
-                  {diff > 0 ? `+${diff}` : diff}
-                </div>
-              </div>
-            )
-          })}
-        </div>
-        <div style={{
-          fontSize: '9px',
-          color: '#6a7a6a',
-          textAlign: 'center',
-          marginTop: '4px',
-        }}>
-          {tournament.standing_by === 'win'
-            ? '3 pts Win · 1 pt Draw · 0 pts Loss'
-            : 'Points based on games won'}
-        </div>
+        <StandingsTable standings={standings} standingBy={tournament.standing_by} />
       </div>
 
       {/* Round Tabs */}
       <div style={{ marginBottom: '16px' }}>
-        <div style={{
-          display: 'flex',
-          gap: '4px',
-          flexWrap: 'wrap',
-          justifyContent: 'center',
-        }}>
-          {Array.from({ length: totalRounds }, (_, i) => i + 1).map((r) => {
-            const status = getRoundStatus(r)
-            const isActive = selectedRound === r
-            const statusIcon = status === 'complete' ? '✅' : status === 'in_progress' ? '⏳' : ''
-
-            return (
-              <button
-                key={r}
-                onClick={() => handleRoundChange(r)}
-                style={{
-                  padding: '6px 12px',
-                  borderRadius: '6px',
-                  border: isActive ? '2px solid #d4e94b' : '1px solid #d0ddd0',
-                  background: isActive ? '#d4e94b' : status === 'complete' ? '#e8f5e9' : '#ffffff',
-                  color: isActive ? '#1a2a1a' : '#6a7a6a',
-                  fontWeight: isActive ? '700' : '400',
-                  cursor: 'pointer',
-                  fontSize: '12px',
-                  transition: 'all 0.2s ease',
-                }}
-              >
-                R{r} {statusIcon}
-              </button>
-            )
-          })}
-        </div>
+        <RoundTabs
+          totalRounds={totalRounds}
+          selectedRound={selectedRound}
+          onSelect={handleRoundChange}
+          getRoundStatus={getRoundStatus}
+        />
       </div>
 
       {/* Round Matches */}
-      {currentRoundData && currentRoundData.matches.length > 0 ? (
-        <>
-          <div style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            color: '#1a2a1a',
-            marginBottom: '8px',
-          }}>
-            Round {selectedRound}
-            {roundStatus === 'complete' && ' ✅ Complete'}
-            {roundStatus === 'in_progress' && ' ⏳ In Progress'}
-          </div>
-
-          {currentRoundData.matches.map((match, index) => {
-            if (match.isBye) return null
-
-            const team1Label = getMatchLabel(match.team1)
-            const team2Label = getMatchLabel(match.team2)
-            const isCompleted = match.completed
-
-            return (
-              <div
-                key={index}
-                onClick={() => handleMatchClick(index)}
-                style={{
-                  border: '1px solid #d0ddd0',
-                  borderRadius: '8px',
-                  padding: '12px 16px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: 'pointer',
-                  transition: 'all 0.2s ease',
-                  background: isCompleted ? 'rgba(74, 222, 128, 0.08)' : '#ffffff',
-                  opacity: isCompleted && !isAdmin ? 0.85 : 1,
-                }}
-                onMouseEnter={(e) => {
-                  if (!isCompleted || isAdmin) {
-                    e.currentTarget.style.background = isCompleted ? 'rgba(74, 222, 128, 0.15)' : '#f8faf8'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (!isCompleted || isAdmin) {
-                    e.currentTarget.style.background = isCompleted ? 'rgba(74, 222, 128, 0.08)' : '#ffffff'
-                  }
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                    {team1Label} vs {team2Label}
-                  </div>
-                  {isCompleted && (
-                    <div style={{ fontSize: '13px', color: '#6a7a6a' }}>
-                      {match.score1} - {match.score2}
-                      {isAdmin && <span style={{ marginLeft: '8px', fontSize: '11px', color: '#f97316' }}>✏️ Tap to edit</span>}
-                    </div>
-                  )}
-                  {!isCompleted && (
-                    <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
-                      Tap to enter score →
-                    </div>
-                  )}
-                </div>
-                <div>
-                  {isCompleted ? (
-                    <span style={{ fontSize: '18px' }}>✅</span>
-                  ) : (
-                    <span style={{ fontSize: '18px', color: '#fbbf24' }}>⏳</span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
-        </>
-      ) : (
-        <div style={{
-          textAlign: 'center',
-          padding: '20px',
-          color: '#6a7a6a',
-          background: '#f8faf8',
-          borderRadius: '8px',
-        }}>
-          {tournament.type === 'mexicano' && selectedRound > 1
-            ? 'Matches will be generated when previous round is complete.'
-            : 'No matches for this round yet.'}
-        </div>
-      )}
+      <MatchList
+        matches={currentRoundData?.matches || []}
+        getMatchLabel={getMatchLabel}
+        onMatchClick={handleMatchClick}
+        isAdmin={isAdmin}
+        selectedRound={selectedRound}
+        roundStatus={roundStatus}
+      />
 
       {error && (
         <div style={{
@@ -678,107 +505,19 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       </div>
 
       {/* PIN Modal */}
-      {showPinModal && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px',
-          }}
-          onClick={() => {
-            setShowPinModal(false)
-            setPinInput('')
-            setPinError('')
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '360px',
-              width: '100%',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 8px 0', color: '#1a2a1a' }}>🔐 Enter Admin PIN</h3>
-            <p style={{ fontSize: '13px', color: '#6a7a6a', marginBottom: '16px' }}>
-              Enter the PIN for this tournament
-            </p>
-
-            <input
-              type="password"
-              inputMode="numeric"
-              placeholder="4-digit PIN"
-              value={pinInput}
-              onChange={(e) => setPinInput(e.target.value.replace(/[^0-9]/g, ''))}
-              maxLength={4}
-              style={{
-                width: '100%',
-                padding: '12px',
-                borderRadius: '8px',
-                border: '1px solid #d0ddd0',
-                background: '#ffffff',
-                color: '#1a2a1a',
-                fontSize: '24px',
-                textAlign: 'center',
-                letterSpacing: '8px',
-                outline: 'none',
-                marginBottom: '12px',
-              }}
-              autoFocus
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleEnterPin()
-              }}
-            />
-
-            {pinError && (
-              <div style={{
-                background: 'rgba(214,67,47,0.12)',
-                color: '#c0392b',
-                padding: '8px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                marginBottom: '12px',
-                textAlign: 'center',
-              }}>
-                {pinError}
-              </div>
-            )}
-
-            <div style={{ display: 'flex', gap: '8px' }}>
-              <button
-                className="btn-secondary"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setShowPinModal(false)
-                  setPinInput('')
-                  setPinError('')
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                style={{ flex: 1 }}
-                onClick={handleEnterPin}
-                disabled={pinInput.length !== 4 || checkingPin}
-              >
-                {checkingPin ? 'Checking...' : 'Unlock'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <AdminPinModal
+        isOpen={showPinModal}
+        onClose={() => {
+          setShowPinModal(false)
+          setPinInput('')
+          setPinError('')
+        }}
+        pinInput={pinInput}
+        setPinInput={setPinInput}
+        pinError={pinError}
+        checkingPin={checkingPin}
+        onEnterPin={handleEnterPin}
+      />
 
       {/* Score Modal */}
       {showScoreModal && selectedMatchIndex !== null && currentRoundData && (
