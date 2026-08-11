@@ -36,26 +36,26 @@ export default function Stats({ refreshKey }) {
       <div style={{
         display: 'flex',
         flexDirection: 'column',
-        gap: '8px',
+        gap: '6px',
         marginBottom: '16px',
       }}>
         <div style={{
           display: 'flex',
-          gap: '6px',
+          gap: '4px',
           flexWrap: 'wrap',
         }}>
           {filterOptions.map((opt) => (
             <button
               key={opt.value}
               style={{
-                padding: '6px 14px',
-                borderRadius: '6px',
+                padding: '4px 10px',
+                borderRadius: '4px',
                 border: dateFilter === opt.value ? '2px solid #d4e94b' : '1px solid #d0ddd0',
                 background: dateFilter === opt.value ? '#d4e94b' : '#ffffff',
                 color: dateFilter === opt.value ? '#1a2a1a' : '#6a7a6a',
-                fontWeight: dateFilter === opt.value ? '700' : '400',
+                fontWeight: dateFilter === opt.value ? '600' : '400',
                 cursor: 'pointer',
-                fontSize: '12px',
+                fontSize: '11px',
                 transition: 'all 0.2s ease',
               }}
               onClick={() => setDateFilter(opt.value)}
@@ -69,7 +69,7 @@ export default function Stats({ refreshKey }) {
         {dateFilter === 'custom' && (
           <div style={{
             display: 'flex',
-            gap: '8px',
+            gap: '6px',
             alignItems: 'center',
             flexWrap: 'wrap',
           }}>
@@ -78,28 +78,30 @@ export default function Stats({ refreshKey }) {
               value={customStart}
               onChange={(e) => setCustomStart(e.target.value)}
               style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
+                padding: '4px 8px',
+                borderRadius: '4px',
                 border: '1px solid #d0ddd0',
                 background: '#ffffff',
                 color: '#1a2a1a',
-                fontSize: '13px',
+                fontSize: '12px',
                 outline: 'none',
+                width: 'auto',
               }}
             />
-            <span style={{ color: '#6a7a6a' }}>to</span>
+            <span style={{ fontSize: '11px', color: '#6a7a6a' }}>to</span>
             <input
               type="date"
               value={customEnd}
               onChange={(e) => setCustomEnd(e.target.value)}
               style={{
-                padding: '6px 10px',
-                borderRadius: '6px',
+                padding: '4px 8px',
+                borderRadius: '4px',
                 border: '1px solid #d0ddd0',
                 background: '#ffffff',
                 color: '#1a2a1a',
-                fontSize: '13px',
+                fontSize: '12px',
                 outline: 'none',
+                width: 'auto',
               }}
             />
           </div>
