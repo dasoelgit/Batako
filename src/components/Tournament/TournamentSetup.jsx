@@ -21,8 +21,8 @@ const TOURNAMENT_TYPES = [
 ]
 
 const POINTS_DISTRIBUTION_OPTIONS = [
-  { id: 'win', label: 'By Win' },
-  { id: 'point', label: 'By Point' },
+  { id: 'win', label: 'By Win (3-0)' },
+  { id: 'point', label: 'By Point (score-based)' },
 ]
 
 export default function TournamentSetup({ players, refreshPlayers, onTournamentCreated, onBack }) {
@@ -40,6 +40,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   // Knockout specific
   const [seeding, setSeeding] = useState('random')
   const [bronzeMatch, setBronzeMatch] = useState(false)
+  const [knockoutMatchType, setKnockoutMatchType] = useState('singles')
 
   // ============================================================
   // ADD PLAYER — Uses shared getOrCreatePlayer with similarity check
@@ -211,7 +212,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         rounds = generateMexicanoRounds(selectedPlayers, numRounds)
       } else if (tournamentType === 'knockout') {
         playersList = selectedPlayers
-        rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch)
+        rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch, knockoutMatchType)
       }
 
       // Insert tournament
@@ -221,11 +222,12 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           name: finalName,
           type: tournamentType,
           status: 'active',
-          standing_by: standingBy,
+          standing_by: tournamentType === 'knockout' ? 'win' : standingBy,
           total_rounds: tournamentType === 'knockout' ? rounds.length : numRounds,
           current_round: 1,
           players: playersList,
           rounds: rounds,
+          match_type: tournamentType === 'knockout' ? knockoutMatchType : null,
         })
         .select()
         .single()
@@ -369,6 +371,22 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       {/* Knockout Settings */}
       {isKnockout && (
         <>
+          <span style={labelStyle}>Match Type</span>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            <button
+              style={toggleButtonStyle(knockoutMatchType === 'singles')}
+              onClick={() => setKnockoutMatchType('singles')}
+            >
+              Singles
+            </button>
+            <button
+              style={toggleButtonStyle(knockoutMatchType === 'doubles')}
+              onClick={() => setKnockoutMatchType('doubles')}
+            >
+              Doubles
+            </button>
+          </div>
+
           <span style={labelStyle}>Seeding</span>
           <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
             <button
@@ -662,7 +680,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
                   Number of Rounds
                 </span>
                 <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  {Array.from({ length: maxRounds }, (_, i) => i + 1).map((v) => (
+                  {Array.from({ length: Math.max(maxRounds, 1) }, (_, i) => i + 1).map((v) => (
                     <button
                       key={v}
                       style={{
