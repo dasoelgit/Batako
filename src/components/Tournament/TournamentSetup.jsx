@@ -2,12 +2,13 @@
 import { useState } from 'react'
 import { supabase } from '../../utils/supabase'
 import { getOrCreatePlayer } from '../../utils/helpers'
-import { 
-  generateAmericanoRounds, 
+import {
+  generateAmericanoRounds,
   generateMexicanoRounds,
   generateSinglesRounds,
-  generateFixedPartnerRounds
-} from '../../utils/tournamentAlgorithms'
+  generateFixedPartnerRounds,
+  generateKnockoutBracket,
+} from '../../utils/tournament'
 import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
 import PlayerPicker from '../PlayerPicker'
 
