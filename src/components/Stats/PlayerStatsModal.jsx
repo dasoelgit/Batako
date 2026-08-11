@@ -2,7 +2,7 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../utils/supabase'
 
-export default function PlayerStatsModal({ player, onClose }) {
+export default function PlayerStatsModal({ player, dateFilter = 'all', customStart = '', customEnd = '', onClose }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
   const [showStatsModal, setShowStatsModal] = useState(false)
@@ -10,15 +10,50 @@ export default function PlayerStatsModal({ player, onClose }) {
 
   useEffect(() => {
     loadPlayerStats()
-  }, [player])
+  }, [player, dateFilter, customStart, customEnd])
 
   const loadPlayerStats = async () => {
     setLoading(true)
     try {
-      const { data: matches } = await supabase
+      let query = supabase
         .from('tennis_matches')
         .select('*')
         .eq('status', 'completed')
+
+      // Apply date filter
+      const now = new Date()
+      let startDate = null
+      let endDate = null
+
+      if (dateFilter === '7days') {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 7)
+        startDate = d.toISOString()
+      } else if (dateFilter === '30days') {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 30)
+        startDate = d.toISOString()
+      } else if (dateFilter === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      } else if (dateFilter === 'custom') {
+        if (customStart) {
+          startDate = new Date(customStart).toISOString()
+        }
+        if (customEnd) {
+          const d = new Date(customEnd)
+          d.setHours(23, 59, 59, 999)
+          endDate = d.toISOString()
+        }
+      }
+
+      if (startDate) {
+        query = query.gte('completed_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('completed_at', endDate)
+      }
+
+      const { data: matches } = await query
 
       if (!matches) {
         setStats(null)
@@ -243,7 +278,7 @@ export default function PlayerStatsModal({ player, onClose }) {
           width: '100%',
           textAlign: 'center',
         }} onClick={e => e.stopPropagation()}>
-          <div>No data available for this player.</div>
+          <div>No data available for this player in this period.</div>
           <button className="btn-primary" style={{ marginTop: '16px' }} onClick={onClose}>Close</button>
         </div>
       </div>
@@ -395,7 +430,7 @@ export default function PlayerStatsModal({ player, onClose }) {
               )}
               {!bestPartner && !mostCommon && (
                 <div style={{ padding: '2px 0', color: '#6a7a6a' }}>
-                  No doubles matches played.
+                  No doubles matches played in this period.
                 </div>
               )}
             </div>
@@ -615,7 +650,7 @@ export default function PlayerStatsModal({ player, onClose }) {
               })}
               {h2h.length === 0 && (
                 <div style={{ padding: '8px', color: '#6a7a6a', textAlign: 'center' }}>
-                  No head-to-head matches found.
+                  No head-to-head matches found in this period.
                 </div>
               )}
             </div>
