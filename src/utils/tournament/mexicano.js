@@ -5,7 +5,6 @@ import {
   makeBye,
   addHistory,
   selectSitOuts,
-  findBestPairing,
 } from './common'
 
 // ============================================================
@@ -61,8 +60,40 @@ export function generateMexicanoRounds(players, totalRounds) {
 }
 
 // ============================================================
+// PAIR A QUARTET — 1st+4th vs 2nd+3rd by default (rank-balanced),
+// falling back to whichever of the 3 possible splits repeats the
+// fewest previous partnerships.
+// ============================================================
+
+function pairQuartet(quartet, pairHistory) {
+  const [p1, p2, p3, p4] = quartet
+
+  const options = [
+    [[p1, p4], [p2, p3]],
+    [[p1, p3], [p2, p4]],
+    [[p1, p2], [p3, p4]],
+  ]
+
+  const repeatCost = ([a, b]) => (pairHistory[a.id]?.has(b.id) ? 1 : 0)
+
+  let best = options[0]
+  let bestCost = Infinity
+
+  for (const [teamA, teamB] of options) {
+    const cost = repeatCost(teamA) + repeatCost(teamB)
+    if (cost < bestCost) {
+      bestCost = cost
+      best = [teamA, teamB]
+    }
+    if (bestCost === 0) break
+  }
+
+  return best
+}
+
+// ============================================================
 // GENERATE MEXICANO PAIRINGS FOR A ROUND
-// Based on Standings
+// Based on Standings — winners play winners, losers play losers.
 // ============================================================
 
 export function generateMexicanoPairings(
@@ -72,30 +103,32 @@ export function generateMexicanoPairings(
   previousPairings = [],
   byeCounts = null
 ) {
+  // Rank order (best first) — this order must be preserved, not shuffled,
+  // since it's what makes Mexicano "competitive" instead of random.
   const sortedPlayers = [...players].sort((a, b) => {
     const aStats = standings[a.id] || { points: 0 }
     const bStats = standings[b.id] || { points: 0 }
     return bStats.points - aStats.points
   })
 
-  let available = [...sortedPlayers]
-  let byePlayer = null
+  // Only full groups of 4 can play a doubles match — same rule as round 1.
+  const sitOutCount = sortedPlayers.length % 4
+  let sitOuts = []
+  let available = sortedPlayers
 
-  if (available.length % 2 !== 0) {
+  if (sitOutCount > 0) {
     if (byeCounts) {
-      const previousPlayed = new Set(previousPairings.flat())
-      const candidates = available.filter(player => previousPlayed.has(player.id))
-      const pool = candidates.length ? candidates : available
-
-      byePlayer = selectSitOuts(pool, 1, byeCounts, new Set())[0]
-      byeCounts[byePlayer.id] = (byeCounts[byePlayer.id] ?? 0) + 1
-      available = available.filter(player => player.id !== byePlayer.id)
+      // Fair rotation: fewest byes so far, avoid sitting out twice in a row.
+      sitOuts = selectSitOuts(sortedPlayers, sitOutCount, byeCounts, new Set())
+      sitOuts.forEach(player => {
+        byeCounts[player.id] = (byeCounts[player.id] ?? 0) + 1
+      })
     } else {
-      const previousPlayed = new Set(previousPairings.flat())
-      const candidates = available.filter(player => previousPlayed.has(player.id))
-      byePlayer = (candidates.length ? candidates : available).at(-1)
-      available = available.filter(player => player.id !== byePlayer.id)
+      // No history yet — sit out the lowest-ranked players.
+      sitOuts = sortedPlayers.slice(-sitOutCount)
     }
+    const sitOutIds = new Set(sitOuts.map(player => player.id))
+    available = sortedPlayers.filter(player => !sitOutIds.has(player.id))
   }
 
   // Build partner history from previous rounds.
@@ -114,23 +147,22 @@ export function generateMexicanoPairings(
     }
   })
 
-  // Shuffle available before pairing
-  const shuffledAvailable = shuffleArray(available)
-
-  const paired = findBestPairing(shuffledAvailable, pairHistory)
-  const pairedList = paired.map(([a, b]) => [a, b])
-
+  // Group by rank tier (top 4, next 4, ...) so each match is between
+  // players of similar current standing, then split each quartet into
+  // rank-balanced teams while avoiding repeat partners where possible.
   const matches = []
 
-  for (let i = 0; i < pairedList.length; i += 2) {
-    if (pairedList[i + 1]) {
-      matches.push(makeMatch(pairedList[i], pairedList[i + 1]))
-    }
+  for (let i = 0; i < available.length; i += 4) {
+    const quartet = available.slice(i, i + 4)
+    if (quartet.length < 4) break // shouldn't happen given sitOutCount above
+
+    const [team1, team2] = pairQuartet(quartet, pairHistory)
+    matches.push(makeMatch(team1, team2))
   }
 
-  if (byePlayer) {
-    matches.push(makeBye([byePlayer]))
-  }
+  sitOuts.forEach(player => {
+    matches.push(makeBye([player]))
+  })
 
   return shuffleArray(matches)
 }
