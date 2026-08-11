@@ -17,6 +17,7 @@ const TOURNAMENT_TYPES = [
   { id: 'mexicano', label: 'Mexicano', desc: 'Competitive pairing' },
   { id: 'singles', label: 'Singles', desc: 'Individual matches' },
   { id: 'fixed_partner', label: 'Fixed Partner', desc: 'Partners stay together' },
+  { id: 'knockout', label: 'Knockout', desc: 'Single elimination' },
 ]
 
 const POINTS_DISTRIBUTION_OPTIONS = [
@@ -36,6 +37,10 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [error, setError] = useState('')
   const [newPlayerName, setNewPlayerName] = useState('')
 
+  // Knockout specific
+  const [seeding, setSeeding] = useState('random')
+  const [bronzeMatch, setBronzeMatch] = useState(false)
+
   // ============================================================
   // ADD PLAYER — Uses shared getOrCreatePlayer with similarity check
   // ============================================================
@@ -45,9 +50,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
     try {
       const player = await getOrCreatePlayer(trimmed)
-      
+
       if (refreshPlayers) refreshPlayers()
-      
+
       if (!selectedPlayers.find(p => p.id === player.id)) {
         setSelectedPlayers(prev => [...prev, player])
       }
@@ -95,7 +100,8 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       'americano': 'Americano',
       'mexicano': 'Mexicano',
       'singles': 'Singles',
-      'fixed_partner': 'Fixed Partner'
+      'fixed_partner': 'Fixed Partner',
+      'knockout': 'Knockout',
     }
     const typeLabel = typeMap[tournamentType] || 'Tournament'
     const date = new Date().toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
@@ -107,7 +113,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       setError('Need at least 2 players to create teams.')
       return
     }
-    
+
     if (selectedPlayers.length % 2 !== 0) {
       setError('Need an even number of players for Fixed Partner. (4, 6, 8)')
       return
@@ -117,9 +123,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
     const teams = []
     for (let i = 0; i < shuffled.length; i += 2) {
       if (i + 1 < shuffled.length) {
-        teams.push({ 
-          player1: shuffled[i], 
-          player2: shuffled[i + 1] 
+        teams.push({
+          player1: shuffled[i],
+          player2: shuffled[i + 1],
         })
       }
     }
@@ -155,6 +161,15 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         }
       }
 
+      if (tournamentType === 'knockout') {
+        if (selectedPlayers.length < 2) {
+          setError('Need at least 2 players for Knockout.')
+          setBusy(false)
+          return
+        }
+        // For knockout, we don't need max rounds check
+      }
+
       if (tournamentType === 'americano' || tournamentType === 'mexicano') {
         if (selectedPlayers.length < 3) {
           setError('Need at least 3 players.')
@@ -165,7 +180,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       const finalName = tournamentName.trim() || getDefaultName()
       const numRounds = useFullRoundRobin ? getMaxRounds() : totalRounds
-      if (numRounds < 1) {
+
+      // Skip rounds validation for knockout
+      if (tournamentType !== 'knockout' && numRounds < 1) {
         setError('Please select number of rounds.')
         setBusy(false)
         return
@@ -183,7 +200,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           name: `${team.player1.name} / ${team.player2.name}`,
           player1: team.player1,
           player2: team.player2,
-          isTeam: true
+          isTeam: true,
         }))
         rounds = generateFixedPartnerRounds(fixedTeams, numRounds)
       } else if (tournamentType === 'americano') {
@@ -192,6 +209,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       } else if (tournamentType === 'mexicano') {
         playersList = selectedPlayers
         rounds = generateMexicanoRounds(selectedPlayers, numRounds)
+      } else if (tournamentType === 'knockout') {
+        playersList = selectedPlayers
+        rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch)
       }
 
       // Insert tournament
@@ -202,7 +222,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           type: tournamentType,
           status: 'active',
           standing_by: standingBy,
-          total_rounds: numRounds,
+          total_rounds: tournamentType === 'knockout' ? rounds.length : numRounds,
           current_round: 1,
           players: playersList,
           rounds: rounds,
@@ -258,6 +278,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   })
 
   const isFixedPartner = tournamentType === 'fixed_partner'
+  const isKnockout = tournamentType === 'knockout'
   const maxRounds = getMaxRounds()
 
   return (
@@ -270,9 +291,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       <button
         className="btn-secondary"
         onClick={onBack}
-        style={{ 
-          width: 'auto', 
-          padding: '8px 16px', 
+        style={{
+          width: 'auto',
+          padding: '8px 16px',
           fontSize: '13px',
           marginBottom: '12px',
         }}
@@ -344,6 +365,43 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           </button>
         ))}
       </div>
+
+      {/* Knockout Settings */}
+      {isKnockout && (
+        <>
+          <span style={labelStyle}>Seeding</span>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            <button
+              style={toggleButtonStyle(seeding === 'random')}
+              onClick={() => setSeeding('random')}
+            >
+              Random
+            </button>
+            <button
+              style={toggleButtonStyle(seeding === 'ranked')}
+              onClick={() => setSeeding('ranked')}
+            >
+              Ranked
+            </button>
+          </div>
+
+          <span style={labelStyle}>Bronze Match</span>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            <button
+              style={toggleButtonStyle(bronzeMatch === false)}
+              onClick={() => setBronzeMatch(false)}
+            >
+              OFF
+            </button>
+            <button
+              style={toggleButtonStyle(bronzeMatch === true)}
+              onClick={() => setBronzeMatch(true)}
+            >
+              ON
+            </button>
+          </div>
+        </>
+      )}
 
       {/* Player Selection */}
       {!isFixedPartner && (
@@ -444,7 +502,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       {isFixedPartner && (
         <>
           <span style={labelStyle}>Create Teams ({fixedTeams.length} teams)</span>
-          
+
           <div style={{
             maxHeight: '120px',
             overflowY: 'auto',
@@ -560,92 +618,99 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         </>
       )}
 
-      {/* Standing By */}
-      <span style={labelStyle}>Standings Based On</span>
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-        {POINTS_DISTRIBUTION_OPTIONS.map((opt) => (
-          <button
-            key={opt.id}
-            style={toggleButtonStyle(standingBy === opt.id)}
-            onClick={() => setStandingBy(opt.id)}
-          >
-            {opt.label}
-          </button>
-        ))}
-      </div>
+      {/* Standing By (not for knockout) */}
+      {!isKnockout && (
+        <>
+          <span style={labelStyle}>Standings Based On</span>
+          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
+            {POINTS_DISTRIBUTION_OPTIONS.map((opt) => (
+              <button
+                key={opt.id}
+                style={toggleButtonStyle(standingBy === opt.id)}
+                onClick={() => setStandingBy(opt.id)}
+              >
+                {opt.label}
+              </button>
+            ))}
+          </div>
+        </>
+      )}
 
-      {/* Rounds */}
-      <span style={labelStyle}>Rounds</span>
-      <div style={{ marginBottom: '16px' }}>
-        <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-          <button
-            style={toggleButtonStyle(useFullRoundRobin)}
-            onClick={() => setUseFullRoundRobin(true)}
-          >
-            Full Round Robin
-          </button>
-          <button
-            style={toggleButtonStyle(!useFullRoundRobin)}
-            onClick={() => setUseFullRoundRobin(false)}
-          >
-            Custom Rounds
-          </button>
-        </div>
+      {/* Rounds (not for knockout) */}
+      {!isKnockout && (
+        <>
+          <span style={labelStyle}>Rounds</span>
+          <div style={{ marginBottom: '16px' }}>
+            <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+              <button
+                style={toggleButtonStyle(useFullRoundRobin)}
+                onClick={() => setUseFullRoundRobin(true)}
+              >
+                Full Round Robin
+              </button>
+              <button
+                style={toggleButtonStyle(!useFullRoundRobin)}
+                onClick={() => setUseFullRoundRobin(false)}
+              >
+                Custom Rounds
+              </button>
+            </div>
 
-        {!useFullRoundRobin && (
-          <div>
-            <span style={{ ...labelStyle, color: '#6a7a6a', fontSize: '12px' }}>
-              Number of Rounds
-            </span>
-            <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-              {Array.from({ length: maxRounds }, (_, i) => i + 1).map((v) => (
-                <button
-                  key={v}
-                  style={{
-                    padding: '6px 14px',
+            {!useFullRoundRobin && (
+              <div>
+                <span style={{ ...labelStyle, color: '#6a7a6a', fontSize: '12px' }}>
+                  Number of Rounds
+                </span>
+                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
+                  {Array.from({ length: maxRounds }, (_, i) => i + 1).map((v) => (
+                    <button
+                      key={v}
+                      style={{
+                        padding: '6px 14px',
+                        borderRadius: '6px',
+                        border: totalRounds === v ? '2px solid #d4e94b' : '1px solid #d0ddd0',
+                        background: totalRounds === v ? '#d4e94b' : '#ffffff',
+                        color: totalRounds === v ? '#1a2a1a' : '#6a7a6a',
+                        fontWeight: totalRounds === v ? '700' : '400',
+                        cursor: 'pointer',
+                        fontSize: '14px',
+                        transition: 'all 0.2s ease',
+                      }}
+                      onClick={() => setTotalRounds(v)}
+                    >
+                      {v}
+                    </button>
+                  ))}
+                </div>
+                <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
+                  Max rounds: {maxRounds}
+                </div>
+
+                {selectedPlayers.length % 2 !== 0 && totalRounds < maxRounds && (
+                  <div style={{
+                    fontSize: '12px',
+                    color: '#fbbf24',
+                    marginTop: '8px',
+                    padding: '8px 12px',
+                    background: 'rgba(251, 191, 36, 0.1)',
                     borderRadius: '6px',
-                    border: totalRounds === v ? '2px solid #d4e94b' : '1px solid #d0ddd0',
-                    background: totalRounds === v ? '#d4e94b' : '#ffffff',
-                    color: totalRounds === v ? '#1a2a1a' : '#6a7a6a',
-                    fontWeight: totalRounds === v ? '700' : '400',
-                    cursor: 'pointer',
-                    fontSize: '14px',
-                    transition: 'all 0.2s ease',
-                  }}
-                  onClick={() => setTotalRounds(v)}
-                >
-                  {v}
-                </button>
-              ))}
-            </div>
-            <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-              Max rounds: {maxRounds}
-            </div>
+                    border: '1px solid rgba(251, 191, 36, 0.2)',
+                  }}>
+                    ⚠️ With {totalRounds} rounds and {selectedPlayers.length} players, not all players will get the same number of byes.
+                    Some players may play fewer matches than others.
+                  </div>
+                )}
+              </div>
+            )}
 
-            {/* --- WARNING: only when odd players + custom rounds < max --- */}
-            {selectedPlayers.length % 2 !== 0 && totalRounds < maxRounds && (
-              <div style={{
-                fontSize: '12px',
-                color: '#fbbf24',
-                marginTop: '8px',
-                padding: '8px 12px',
-                background: 'rgba(251, 191, 36, 0.1)',
-                borderRadius: '6px',
-                border: '1px solid rgba(251, 191, 36, 0.2)',
-              }}>
-                ⚠️ With {totalRounds} rounds and {selectedPlayers.length} players, not all players will get the same number of byes.
-                Some players may play fewer matches than others.
+            {useFullRoundRobin && (
+              <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
+                {maxRounds} rounds · {isFixedPartner ? fixedTeams.length : selectedPlayers.length} {isFixedPartner ? 'teams' : 'players'}
               </div>
             )}
           </div>
-        )}
-
-        {useFullRoundRobin && (
-          <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-            {maxRounds} rounds · {isFixedPartner ? fixedTeams.length : selectedPlayers.length} {isFixedPartner ? 'teams' : 'players'}
-          </div>
-        )}
-      </div>
+        </>
+      )}
 
       {error && (
         <div style={{
