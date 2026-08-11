@@ -377,9 +377,12 @@ export function generateAmericanoRounds(
       sitCounts[player.id] += 1
     })
 
+    // --- SHUFFLE PLAYING PLAYERS BEFORE PAIRING ---
+    const shuffledPlaying = shuffleArray(playing)
+
     // Build teams while minimizing repeated partners.
     const partnerPairs = findBestPairing(
-      playing,
+      shuffledPlaying,
       partnered
     )
 
@@ -687,9 +690,12 @@ export function generateMexicanoPairings(
     }
   })
 
+  // --- SHUFFLE AVAILABLE PLAYERS BEFORE PAIRING ---
+  const shuffledAvailable = shuffleArray(available)
+
   const paired =
     findBestPairing(
-      available,
+      shuffledAvailable,
       pairHistory
     )
 
