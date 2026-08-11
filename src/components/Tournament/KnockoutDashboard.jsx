@@ -20,6 +20,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
   const rounds = tournamentData.rounds || []
   const totalRounds = rounds.length
+  const isDoubles = tournamentData.type === 'knockout' && tournamentData.match_type === 'doubles'
 
   useEffect(() => {
     // Check if tournament is complete
@@ -48,10 +49,21 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
   const getMatchLabel = (team) => {
     if (!team) return 'TBD'
+    if (!Array.isArray(team)) return team.name || 'TBD'
     const players = team.filter(p => p && !p.isBye)
     if (players.length === 0) return 'TBD'
     if (players.length === 1) return players[0].name
     return players.map(p => p.name).join(' / ')
+  }
+
+  const getTeamName = (match, side) => {
+    if (side === 1) {
+      if (match.team1Name) return match.team1Name
+      return getMatchLabel(match.team1)
+    } else {
+      if (match.team2Name) return match.team2Name
+      return getMatchLabel(match.team2)
+    }
   }
 
   const handleMatchClick = (roundIndex, matchIndex) => {
@@ -64,6 +76,9 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
     // Skip if match doesn't have two teams (placeholder for future rounds)
     if (!match.team1 || !match.team2) return
     if (match.team1.length === 0 || match.team2.length === 0) return
+
+    // Check if any team is a placeholder
+    if (match.team1[0]?.isPlaceholder || match.team2[0]?.isPlaceholder) return
 
     setSelectedRoundIndex(roundIndex)
     setSelectedMatchIndex(matchIndex)
@@ -94,9 +109,31 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       // Determine winner
       let winner = null
       let draw = false
-      if (s1 > s2) winner = match.team1[0]
-      else if (s2 > s1) winner = match.team2[0]
-      else draw = true
+      if (s1 > s2) {
+        // Team 1 wins
+        if (isDoubles && match.team1.length > 0) {
+          winner = {
+            id: match.team1.map(p => p.id).join('-'),
+            name: match.team1.map(p => p.name).join(' / '),
+            players: match.team1,
+          }
+        } else {
+          winner = match.team1[0]
+        }
+      } else if (s2 > s1) {
+        // Team 2 wins
+        if (isDoubles && match.team2.length > 0) {
+          winner = {
+            id: match.team2.map(p => p.id).join('-'),
+            name: match.team2.map(p => p.name).join(' / '),
+            players: match.team2,
+          }
+        } else {
+          winner = match.team2[0]
+        }
+      } else {
+        draw = true
+      }
 
       if (draw) {
         setError('Knockout matches cannot end in a draw. Please enter a valid score.')
@@ -117,7 +154,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       const { data: matchData, error: matchError } = await supabase
         .from('tennis_matches')
         .insert({
-          play_type: 'singles',
+          play_type: isDoubles ? 'doubles' : 'singles',
           team1_players: team1Players,
           team2_players: team2Players,
           status: 'completed',
@@ -129,7 +166,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
             set_number: 1,
             team1_games: s1,
             team2_games: s2,
-            winner: winner === match.team1[0] ? 1 : 2,
+            winner: s1 > s2 ? 1 : 2,
             tiebreak: null,
           }],
           current_set: 1,
@@ -137,7 +174,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           team2_games: s2,
           team1_points: 0,
           team2_points: 0,
-          winner: winner === match.team1[0] ? 1 : 2,
+          winner: s1 > s2 ? 1 : 2,
           draw: false,
           tournament_id: tournamentData.id,
           is_tournament_match: true,
@@ -168,14 +205,24 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           if (nextMatch.team1 && nextMatch.team1[0]?.isPlaceholder) {
             const placeholderId = nextMatch.team1[0].id
             if (placeholderId === match.id || placeholderId === `match_${selectedRoundIndex + 1}_${selectedMatchIndex}`) {
-              nextMatch.team1 = [winner]
+              if (isDoubles && winner.players) {
+                nextMatch.team1 = winner.players
+                nextMatch.team1Name = winner.name
+              } else {
+                nextMatch.team1 = [winner]
+              }
               break
             }
           }
           if (nextMatch.team2 && nextMatch.team2[0]?.isPlaceholder) {
             const placeholderId = nextMatch.team2[0].id
             if (placeholderId === match.id || placeholderId === `match_${selectedRoundIndex + 1}_${selectedMatchIndex}`) {
-              nextMatch.team2 = [winner]
+              if (isDoubles && winner.players) {
+                nextMatch.team2 = winner.players
+                nextMatch.team2Name = winner.name
+              } else {
+                nextMatch.team2 = [winner]
+              }
               break
             }
           }
@@ -272,6 +319,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         marginBottom: '16px',
       }}>
         Knockout Tournament · {tournamentData.players?.length || 0} players
+        {isDoubles && ' · Doubles'}
         {champion && ' · ✅ Complete'}
       </div>
 
@@ -311,8 +359,8 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
           {round.matches.map((match, matchIndex) => {
             const isReady = isMatchReady(match)
-            const team1Label = getMatchLabel(match.team1)
-            const team2Label = getMatchLabel(match.team2)
+            const team1Label = getTeamName(match, 1)
+            const team2Label = getTeamName(match, 2)
             const isCompleted = match.completed
             const isBye = match.isBye
 
@@ -448,7 +496,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
               textAlign: 'center',
               marginBottom: '16px',
             }}>
-              {getMatchLabel(selectedMatch.team1)} vs {getMatchLabel(selectedMatch.team2)}
+              {getTeamName(selectedMatch, 1)} vs {getTeamName(selectedMatch, 2)}
             </div>
 
             <div style={{
@@ -459,7 +507,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
             }}>
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 1</div>
-                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getMatchLabel(selectedMatch.team1)}</div>
+                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getTeamName(selectedMatch, 1)}</div>
                 <input
                   type="text"
                   inputMode="numeric"
@@ -484,7 +532,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
               <div style={{ flex: 1, textAlign: 'center' }}>
                 <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 2</div>
-                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getMatchLabel(selectedMatch.team2)}</div>
+                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getTeamName(selectedMatch, 2)}</div>
                 <input
                   type="text"
                   inputMode="numeric"
