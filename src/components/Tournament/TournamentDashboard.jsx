@@ -32,7 +32,6 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     if (tournament) {
       const savedPin = getPINFromStorage(tournament.id)
       if (savedPin) {
-        // Verify the saved PIN
         verifyPIN(savedPin, tournament.admin_pin_hash).then(isValid => {
           if (isValid) {
             setIsAdmin(true)
@@ -96,13 +95,11 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     
     if (match.isBye) return
     
-    // If already completed, only admin can edit
     if (match.completed && !isAdmin) {
       alert('🔒 Only the tournament admin can edit completed matches.')
       return
     }
     
-    // If not completed, anyone can enter score
     setSelectedMatchIndex(matchIndex)
     setScore1(match.completed ? String(match.score1) : '')
     setScore2(match.completed ? String(match.score2) : '')
@@ -136,197 +133,227 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   }
 
   const handleSaveScore = async () => {
-  setError('')
-  setBusy(true)
+    setError('')
+    setBusy(true)
 
-  try {
-    const s1 = parseInt(score1)
-    const s2 = parseInt(score2)
+    try {
+      const s1 = parseInt(score1)
+      const s2 = parseInt(score2)
 
-    if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
-      setError('Please enter valid scores.')
-      setBusy(false)
-      return
-    }
-
-    const updatedRounds = [...tournament.rounds]
-    const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
-    const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
-
-    // --- 1. Determine winner / draw ---
-    let winner = null
-    let draw = false
-    if (s1 > s2) winner = 1
-    else if (s2 > s1) winner = 2
-    else draw = true
-
-    // --- 2. Get team players ---
-    let team1Players = []
-    let team2Players = []
-
-    if (tournament.type === 'fixed_partner') {
-      const t1 = match.team1 || []
-      const t2 = match.team2 || []
-      
-      if (t1.length > 0 && t1[0]?.player1) {
-        team1Players = t1.map(p => p.player1).concat(t1.map(p => p.player2)).filter(Boolean)
-      } else {
-        team1Players = t1.filter(p => p && !p.isBye)
+      if (isNaN(s1) || isNaN(s2) || s1 < 0 || s2 < 0) {
+        setError('Please enter valid scores.')
+        setBusy(false)
+        return
       }
-      
-      if (t2.length > 0 && t2[0]?.player1) {
-        team2Players = t2.map(p => p.player1).concat(t2.map(p => p.player2)).filter(Boolean)
+
+      const updatedRounds = [...tournament.rounds]
+      const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
+      const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
+
+      // --- 1. Determine winner / draw ---
+      let winner = null
+      let draw = false
+      if (s1 > s2) winner = 1
+      else if (s2 > s1) winner = 2
+      else draw = true
+
+      // --- 2. Get team players ---
+      let team1Players = []
+      let team2Players = []
+
+      if (tournament.type === 'fixed_partner') {
+        const t1 = match.team1 || []
+        const t2 = match.team2 || []
+        
+        if (t1.length > 0 && t1[0]?.player1) {
+          team1Players = t1.map(p => p.player1).concat(t1.map(p => p.player2)).filter(Boolean)
+        } else {
+          team1Players = t1.filter(p => p && !p.isBye)
+        }
+        
+        if (t2.length > 0 && t2[0]?.player1) {
+          team2Players = t2.map(p => p.player1).concat(t2.map(p => p.player2)).filter(Boolean)
+        } else {
+          team2Players = t2.filter(p => p && !p.isBye)
+        }
       } else {
-        team2Players = t2.filter(p => p && !p.isBye)
+        team1Players = match.team1?.filter(p => p && !p.isBye) || []
+        team2Players = match.team2?.filter(p => p && !p.isBye) || []
       }
-    } else {
-      team1Players = match.team1?.filter(p => p && !p.isBye) || []
-      team2Players = match.team2?.filter(p => p && !p.isBye) || []
-    }
 
-    // --- 3. Always create a new match for tournament matches ---
-    const { data: matchData, error: matchError } = await supabase
-      .from('tennis_matches')
-      .insert({
-        play_type: tournament.type === 'singles' ? 'singles' : 'doubles',
-        team1_players: team1Players,
-        team2_players: team2Players,
-        status: 'completed',
-        game_scoring: 'standard',
-        set_type: 'best_of',
-        set_value: 1,
-        match_config: 'single',
-        sets: [{
-          set_number: 1,
-          team1_games: s1,
-          team2_games: s2,
-          winner: winner,
-          tiebreak: null,
-        }],
-        current_set: 1,
-        team1_games: s1,
-        team2_games: s2,
-        team1_points: 0,
-        team2_points: 0,
-        winner: winner,
-        draw: draw,
-        tournament_id: tournament.id,
-        is_tournament_match: true,
-        completed_at: new Date().toISOString(),
-      })
-      .select()
-      .single()
+      // --- 3. Check if THIS SPECIFIC match already has a linked row ---
+      const existingMatchId = match.match_id
 
-    if (matchError) throw matchError
+      let matchData
 
-    // --- 4. Link to tournament_matches ---
-    const { error: linkError } = await supabase
-      .from('tennis_tournament_matches')
-      .insert({
-        tournament_id: tournament.id,
-        match_id: matchData.id,
-        round_number: selectedRound,
-      })
+      if (existingMatchId) {
+        const { data, error: updateError } = await supabase
+          .from('tennis_matches')
+          .update({
+            sets: [{
+              set_number: 1,
+              team1_games: s1,
+              team2_games: s2,
+              winner: winner,
+              tiebreak: null,
+            }],
+            team1_games: s1,
+            team2_games: s2,
+            winner: winner,
+            draw: draw,
+            completed_at: new Date().toISOString(),
+          })
+          .eq('id', existingMatchId)
+          .select()
+          .single()
 
-    if (linkError) throw linkError
+        if (updateError) throw updateError
+        matchData = data
+      } else {
+        const { data, error: insertError } = await supabase
+          .from('tennis_matches')
+          .insert({
+            play_type: tournament.type === 'singles' ? 'singles' : 'doubles',
+            team1_players: team1Players,
+            team2_players: team2Players,
+            status: 'completed',
+            game_scoring: 'standard',
+            set_type: 'best_of',
+            set_value: 1,
+            match_config: 'single',
+            sets: [{
+              set_number: 1,
+              team1_games: s1,
+              team2_games: s2,
+              winner: winner,
+              tiebreak: null,
+            }],
+            current_set: 1,
+            team1_games: s1,
+            team2_games: s2,
+            team1_points: 0,
+            team2_points: 0,
+            winner: winner,
+            draw: draw,
+            tournament_id: tournament.id,
+            is_tournament_match: true,
+            completed_at: new Date().toISOString(),
+          })
+          .select()
+          .single()
 
-    // --- 5. Update tournament rounds ---
-    match.completed = true
-    match.score1 = s1
-    match.score2 = s2
+        if (insertError) throw insertError
+        matchData = data
 
-    // --- 6. Mexicano: generate next round pairings with repeat prevention + fair bye rotation ---
-    if (tournament.type === 'mexicano') {
-      const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
-      const nextRoundNumber = selectedRound + 1
+        const { error: linkError } = await supabase
+          .from('tennis_tournament_matches')
+          .insert({
+            tournament_id: tournament.id,
+            match_id: matchData.id,
+            round_number: selectedRound,
+          })
 
-      if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds) {
-        const standings = calculateTournamentStandings(
-          tournament.players,
-          updatedRounds.slice(0, nextRoundNumber - 1),
-          tournament.standing_by
-        )
+        if (linkError) throw linkError
 
-        const standingsObj = {}
-        standings.forEach(s => {
-          standingsObj[s.id] = { points: s.Pts }
-        })
+        match.match_id = matchData.id
+      }
 
-        const previousPairings = []
-        const byeCounts = {}  // NEW: track byes for fair rotation
+      // --- 4. Update tournament rounds ---
+      match.completed = true
+      match.score1 = s1
+      match.score2 = s2
 
-        for (let r = 0; r < nextRoundNumber - 1; r++) {
-          const prevRound = updatedRounds[r]
-          if (prevRound) {
-            prevRound.matches.forEach(m => {
-              if (m.isBye) {  // NEW: count byes
-                const byeId = m.team1?.[0]?.id
-                if (byeId) byeCounts[byeId] = (byeCounts[byeId] || 0) + 1
-                return
-              }
-              if (!m.isBye && m.team1 && m.team2) {
-                const t1Ids = m.team1.filter(p => p && !p.isBye).map(p => p.id).sort()
-                const t2Ids = m.team2.filter(p => p && !p.isBye).map(p => p.id).sort()
-                if (t1Ids.length > 0 && t2Ids.length > 0) {
-                  previousPairings.push([...t1Ids, ...t2Ids])
+      // --- 5. Mexicano: generate next round pairings with repeat prevention ---
+      if (tournament.type === 'mexicano') {
+        const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
+        const nextRoundNumber = selectedRound + 1
+        
+        if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds) {
+          const standings = calculateTournamentStandings(
+            tournament.players,
+            updatedRounds.slice(0, nextRoundNumber - 1),
+            tournament.standing_by
+          )
+          
+          const standingsObj = {}
+          standings.forEach(s => {
+            standingsObj[s.id] = { points: s.Pts }
+          })
+          
+          const previousPairings = []
+          const byeCounts = {}
+          for (let r = 0; r < nextRoundNumber - 1; r++) {
+            const prevRound = updatedRounds[r]
+            if (prevRound) {
+              prevRound.matches.forEach(m => {
+                if (m.isBye) {
+                  const byeId = m.team1?.[0]?.id
+                  if (byeId) byeCounts[byeId] = (byeCounts[byeId] || 0) + 1
+                  return
                 }
-              }
+                if (!m.isBye && m.team1 && m.team2) {
+                  const t1Ids = m.team1.filter(p => p && !p.isBye).map(p => p.id).sort()
+                  const t2Ids = m.team2.filter(p => p && !p.isBye).map(p => p.id).sort()
+                  if (t1Ids.length > 0 && t2Ids.length > 0) {
+                    previousPairings.push([...t1Ids, ...t2Ids])
+                  }
+                }
+              })
+            }
+          }
+          
+          const newPairings = generateMexicanoPairings(
+            tournament.players,
+            standingsObj,
+            nextRoundNumber,
+            previousPairings,
+            byeCounts
+          )
+          
+          let nextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
+          if (nextRound) {
+            nextRound.matches = newPairings
+          } else {
+            updatedRounds.push({
+              round_number: nextRoundNumber,
+              matches: newPairings,
             })
           }
         }
-
-        const newPairings = generateMexicanoPairings(
-          tournament.players,
-          standingsObj,
-          nextRoundNumber,
-          previousPairings,
-          byeCounts  // NEW: pass byeCounts for fair rotation
-        )
-
-        let nextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
-        if (nextRound) {
-          nextRound.matches = newPairings
-        } else {
-          updatedRounds.push({
-            round_number: nextRoundNumber,
-            matches: newPairings,
-          })
-        }
       }
-    }
 
-    // --- 7. Update tournament ---
-    const { error: updateError } = await supabase
-      .from('tennis_tournaments')
-      .update({ rounds: updatedRounds })
-      .eq('id', tournament.id)
-
-    if (updateError) throw updateError
-
-    setTournament(prev => ({ ...prev, rounds: updatedRounds }))
-    setShowScoreModal(false)
-    setSelectedMatchIndex(null)
-    setScore1('')
-    setScore2('')
-    setBusy(false)
-
-    // --- 8. Refresh leaderboard ---
-    window.dispatchEvent(new Event('refreshData'))
-
-    // --- 9. Check if tournament complete ---
-    if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
-      await supabase
+      // --- 6. Update tournament ---
+      const { error: updateError } = await supabase
         .from('tennis_tournaments')
-        .update({ status: 'completed', completed_at: new Date().toISOString() })
+        .update({ rounds: updatedRounds })
         .eq('id', tournament.id)
-      onTournamentComplete(tournament.id)
+
+      if (updateError) throw updateError
+
+      setTournament(prev => ({ ...prev, rounds: updatedRounds }))
+      setShowScoreModal(false)
+      setSelectedMatchIndex(null)
+      setScore1('')
+      setScore2('')
+      setBusy(false)
+
+      // --- 7. Refresh leaderboard ---
+      window.dispatchEvent(new Event('refreshData'))
+
+      // --- 8. Check if tournament complete ---
+      if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
+        await supabase
+          .from('tennis_tournaments')
+          .update({ status: 'completed', completed_at: new Date().toISOString() })
+          .eq('id', tournament.id)
+        onTournamentComplete(tournament.id)
+      }
+    } catch (err) {
+      setError(err.message || 'Failed to save score')
+      setBusy(false)
     }
-  } catch (err) {
-    setError(err.message || 'Failed to save score')
-    setBusy(false)
   }
-}
-  
+
   const handleStartLive = async () => {
     alert('Live Scoreboard coming soon!')
   }
@@ -338,6 +365,17 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   if (loading) return <div className="loading">Loading tournament...</div>
   if (error) return <div className="empty-state">Error: {error}</div>
   if (!tournament) return <div className="empty-state">Tournament not found</div>
+
+  // --- KNOCKOUT: render separate dashboard ---
+  if (tournament.type === 'knockout') {
+    return (
+      <KnockoutDashboard
+        tournament={tournament}
+        onTournamentComplete={onTournamentComplete}
+        onBack={onBack}
+      />
+    )
+  }
 
   const tournamentLabels = {
     americano: 'Americano',
@@ -357,15 +395,6 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   const roundStatus = getRoundStatus(selectedRound)
   const totalRounds = tournament.total_rounds
 
-  if (tournament.type === 'knockout') {
-  return (
-    <KnockoutDashboard
-      tournament={tournament}
-      onTournamentComplete={onTournamentComplete}
-      onBack={onBack}
-    />
-  )
-}
   return (
     <div style={{
       background: '#ffffff',
@@ -374,17 +403,17 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       boxShadow: '0 2px 12px rgba(0,0,0,0.08)',
     }}>
       <button
-  className="btn-secondary"
-  onClick={onBack}
-  style={{ 
-    width: 'auto', 
-    padding: '8px 16px', 
-    fontSize: '13px',
-    marginBottom: '12px',
-  }}
->
-  ← Back
-</button>
+        className="btn-secondary"
+        onClick={onBack}
+        style={{ 
+          width: 'auto', 
+          padding: '8px 16px', 
+          fontSize: '13px',
+          marginBottom: '12px',
+        }}
+      >
+        ← Back
+      </button>
 
       {/* Header */}
       <div style={{
