@@ -6,7 +6,7 @@ import {
   isTournamentComplete,
   isRoundComplete,
   generateMexicanoPairings,
-} from '../../utils/tournamentAlgorithms'
+} from '../../utils/tournament'
 import { teamLabel } from '../../utils/helpers'
 import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
 
