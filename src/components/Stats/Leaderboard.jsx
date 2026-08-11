@@ -59,30 +59,73 @@ function buildStandings(matches) {
   return rows
 }
 
-export default function Leaderboard({ refreshKey }) {
+export default function Leaderboard({ refreshKey, dateFilter, customStart, customEnd }) {
   const [rows, setRows] = useState(null)
   const [selectedPlayer, setSelectedPlayer] = useState(null)
   const [showModal, setShowModal] = useState(false)
+  const [loading, setLoading] = useState(true)
 
   useEffect(() => {
-    let active = true
-    supabase
-      .from('tennis_matches')
-      .select('winner, draw, team1_players, team2_players, status')
-      .eq('status', 'completed')
-      .then(({ data }) => {
-        if (active && data) setRows(buildStandings(data))
-      })
-    return () => { active = false }
-  }, [refreshKey])
+    loadMatches()
+  }, [refreshKey, dateFilter, customStart, customEnd])
+
+  const loadMatches = async () => {
+    setLoading(true)
+    try {
+      let query = supabase
+        .from('tennis_matches')
+        .select('winner, draw, team1_players, team2_players, status, completed_at')
+        .eq('status', 'completed')
+
+      // Apply date filter
+      const now = new Date()
+      let startDate = null
+      let endDate = null
+
+      if (dateFilter === '7days') {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 7)
+        startDate = d.toISOString()
+      } else if (dateFilter === '30days') {
+        const d = new Date(now)
+        d.setDate(d.getDate() - 30)
+        startDate = d.toISOString()
+      } else if (dateFilter === 'month') {
+        startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+      } else if (dateFilter === 'custom') {
+        if (customStart) {
+          startDate = new Date(customStart).toISOString()
+        }
+        if (customEnd) {
+          const d = new Date(customEnd)
+          d.setHours(23, 59, 59, 999)
+          endDate = d.toISOString()
+        }
+      }
+
+      if (startDate) {
+        query = query.gte('completed_at', startDate)
+      }
+      if (endDate) {
+        query = query.lte('completed_at', endDate)
+      }
+
+      const { data } = await query
+      setRows(buildStandings(data || []))
+    } catch (err) {
+      console.error('Error loading leaderboard:', err)
+    } finally {
+      setLoading(false)
+    }
+  }
 
   const handlePlayerClick = (player) => {
     setSelectedPlayer(player)
     setShowModal(true)
   }
 
-  if (rows === null) return <div className="loading">Loading standings…</div>
-  if (rows.length === 0) return <div className="empty-state">No completed matches yet.</div>
+  if (loading) return <div className="loading">Loading standings…</div>
+  if (!rows || rows.length === 0) return <div className="empty-state">No completed matches in this period.</div>
 
   return (
     <div className="card">
@@ -149,6 +192,9 @@ export default function Leaderboard({ refreshKey }) {
       {showModal && selectedPlayer && (
         <PlayerStatsModal
           player={selectedPlayer}
+          dateFilter={dateFilter}
+          customStart={customStart}
+          customEnd={customEnd}
           onClose={() => {
             setShowModal(false)
             setSelectedPlayer(null)
