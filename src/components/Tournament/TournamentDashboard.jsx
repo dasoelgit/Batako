@@ -9,6 +9,7 @@ import {
 } from '../../utils/tournament'
 import { teamLabel } from '../../utils/helpers'
 import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
+import KnockoutDashboard from './KnockoutDashboard'
 
 export default function TournamentDashboard({ tournamentId, onTournamentComplete, onBack }) {
   const [tournament, setTournament] = useState(null)
@@ -356,6 +357,15 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   const roundStatus = getRoundStatus(selectedRound)
   const totalRounds = tournament.total_rounds
 
+  if (tournament.type === 'knockout') {
+  return (
+    <KnockoutDashboard
+      tournament={tournament}
+      onTournamentComplete={onTournamentComplete}
+      onBack={onBack}
+    />
+  )
+}
   return (
     <div style={{
       background: '#ffffff',
