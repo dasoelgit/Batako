@@ -4,6 +4,18 @@
 // SCHEDULING HELPERS
 // ============================================================
 
+// ============================================================
+// SHUFFLE HELPER — Randomizes match order
+// ============================================================
+
+function shuffleArray(array) {
+  for (let i = array.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [array[i], array[j]] = [array[j], array[i]];
+  }
+  return array;
+}
+
 function makeMatch(team1, team2) {
   return {
     team1,
@@ -437,9 +449,12 @@ export function generateAmericanoRounds(
       )
     })
 
+    // --- SHUFFLE MATCH ORDER ---
+    const shuffledMatches = shuffleArray(roundMatches)
+
     rounds.push({
       round_number: round,
-      matches: roundMatches,
+      matches: shuffledMatches,
     })
 
     // Used by the next round to minimize consecutive play.
@@ -525,9 +540,12 @@ export function generateMexicanoRounds(
     round1Matches.push(makeBye([player]))
   })
 
+  // --- SHUFFLE MATCH ORDER ---
+  const shuffledMatches = shuffleArray(round1Matches)
+
   rounds.push({
     round_number: 1,
-    matches: round1Matches,
+    matches: shuffledMatches,
   })
 
   for (
@@ -703,7 +721,8 @@ export function generateMexicanoPairings(
     )
   }
 
-  return matches
+  // --- SHUFFLE MATCH ORDER ---
+  return shuffleArray(matches)
 }
 
 // ============================================================
@@ -784,9 +803,12 @@ export function generateSinglesRounds(
       }
     }
 
+    // --- SHUFFLE MATCH ORDER ---
+    const shuffledMatches = shuffleArray(roundMatches)
+
     rounds.push({
       round_number: round,
-      matches: roundMatches,
+      matches: shuffledMatches,
     })
 
     // Keep first slot fixed and rotate
@@ -896,9 +918,12 @@ export function generateFixedPartnerRounds(
       }
     }
 
+    // --- SHUFFLE MATCH ORDER ---
+    const shuffledMatches = shuffleArray(roundMatches)
+
     rounds.push({
       round_number: round,
-      matches: roundMatches,
+      matches: shuffledMatches,
     })
 
     rotation = [
