@@ -10,6 +10,7 @@ import {
 import { teamLabel } from '../../utils/helpers'
 import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
 import KnockoutDashboard from './KnockoutDashboard'
+import ScoreModal from './ScoreModal'
 
 export default function TournamentDashboard({ tournamentId, onTournamentComplete, onBack }) {
   const [tournament, setTournament] = useState(null)
@@ -27,7 +28,6 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   const [pinError, setPinError] = useState('')
   const [checkingPin, setCheckingPin] = useState(false)
 
-  // Check if PIN is already in localStorage
   useEffect(() => {
     if (tournament) {
       const savedPin = getPINFromStorage(tournament.id)
@@ -150,14 +150,12 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
       const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
 
-      // --- 1. Determine winner / draw ---
       let winner = null
       let draw = false
       if (s1 > s2) winner = 1
       else if (s2 > s1) winner = 2
       else draw = true
 
-      // --- 2. Get team players ---
       let team1Players = []
       let team2Players = []
 
@@ -181,9 +179,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         team2Players = match.team2?.filter(p => p && !p.isBye) || []
       }
 
-      // --- 3. Check if THIS SPECIFIC match already has a linked row ---
       const existingMatchId = match.match_id
-
       let matchData
 
       if (existingMatchId) {
@@ -254,16 +250,14 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
           })
 
         if (linkError) throw linkError
-
         match.match_id = matchData.id
       }
 
-      // --- 4. Update tournament rounds ---
       match.completed = true
       match.score1 = s1
       match.score2 = s2
 
-      // --- 5. Mexicano: generate next round pairings with repeat prevention ---
+      // Mexicano: generate next round pairings
       if (tournament.type === 'mexicano') {
         const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
         const nextRoundNumber = selectedRound + 1
@@ -322,7 +316,6 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         }
       }
 
-      // --- 6. Update tournament ---
       const { error: updateError } = await supabase
         .from('tennis_tournaments')
         .update({ rounds: updatedRounds })
@@ -337,10 +330,8 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       setScore2('')
       setBusy(false)
 
-      // --- 7. Refresh leaderboard ---
       window.dispatchEvent(new Event('refreshData'))
 
-      // --- 8. Check if tournament complete ---
       if (isTournamentComplete(updatedRounds, tournament.total_rounds)) {
         await supabase
           .from('tennis_tournaments')
@@ -366,7 +357,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
   if (error) return <div className="empty-state">Error: {error}</div>
   if (!tournament) return <div className="empty-state">Tournament not found</div>
 
-  // --- KNOCKOUT: render separate dashboard ---
+  // --- KNOCKOUT ---
   if (tournament.type === 'knockout') {
     return (
       <KnockoutDashboard
@@ -662,7 +653,7 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
         </div>
       )}
 
-      {/* Lock/Admin Icon — Bottom Right */}
+      {/* Lock/Admin Icon */}
       <div style={{
         display: 'flex',
         justifyContent: 'flex-end',
@@ -791,181 +782,28 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
 
       {/* Score Modal */}
       {showScoreModal && selectedMatchIndex !== null && currentRoundData && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px',
-          }}
-          onClick={() => {
+        <ScoreModal
+          team1Label={getMatchLabel(currentRoundData.matches[selectedMatchIndex].team1)}
+          team2Label={getMatchLabel(currentRoundData.matches[selectedMatchIndex].team2)}
+          roundLabel={`Round ${selectedRound}`}
+          isAdmin={isAdmin}
+          isEditing={isAdmin && currentRoundData.matches[selectedMatchIndex]?.completed}
+          score1={score1}
+          setScore1={setScore1}
+          score2={score2}
+          setScore2={setScore2}
+          error={error}
+          busy={busy}
+          onSave={handleSaveScore}
+          onCancel={() => {
             setShowScoreModal(false)
             setSelectedMatchIndex(null)
             setScore1('')
             setScore2('')
             setError('')
           }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '400px',
-              width: '100%',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px 0', color: '#1a2a1a' }}>
-              {isAdmin && selectedMatchIndex !== null && currentRoundData.matches[selectedMatchIndex]?.completed 
-                ? '✏️ Edit Score' 
-                : '📝 Enter Score'}
-            </h3>
-
-            {(() => {
-              const match = currentRoundData.matches[selectedMatchIndex]
-              const team1Label = getMatchLabel(match.team1)
-              const team2Label = getMatchLabel(match.team2)
-
-              return (
-                <>
-                  <div style={{
-                    fontSize: '14px',
-                    fontWeight: '600',
-                    color: '#1a2a1a',
-                    textAlign: 'center',
-                    marginBottom: '16px',
-                  }}>
-                    Round {selectedRound}
-                  </div>
-
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    gap: '12px',
-                  }}>
-                    <div style={{ flex: 1, textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 1</div>
-                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{team1Label}</div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={score1}
-                        onChange={(e) => setScore1(e.target.value.replace(/[^0-9]/g, ''))}
-                        style={{
-                          width: '60px',
-                          padding: '10px',
-                          borderRadius: '8px',
-                          border: '1px solid #d0ddd0',
-                          background: '#ffffff',
-                          color: '#1a2a1a',
-                          fontSize: '20px',
-                          textAlign: 'center',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-
-                    <div style={{ fontSize: '16px', fontWeight: '700', color: '#6a7a6a' }}>vs</div>
-
-                    <div style={{ flex: 1, textAlign: 'center' }}>
-                      <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 2</div>
-                      <div style={{ fontWeight: '600', marginBottom: '8px' }}>{team2Label}</div>
-                      <input
-                        type="text"
-                        inputMode="numeric"
-                        placeholder="0"
-                        value={score2}
-                        onChange={(e) => setScore2(e.target.value.replace(/[^0-9]/g, ''))}
-                        style={{
-                          width: '60px',
-                          padding: '10px',
-                          borderRadius: '8px',
-                          border: '1px solid #d0ddd0',
-                          background: '#ffffff',
-                          color: '#1a2a1a',
-                          fontSize: '20px',
-                          textAlign: 'center',
-                          outline: 'none',
-                        }}
-                      />
-                    </div>
-                  </div>
-
-                  {error && (
-                    <div style={{
-                      background: 'rgba(214,67,47,0.12)',
-                      color: '#c0392b',
-                      padding: '8px',
-                      borderRadius: '6px',
-                      fontSize: '13px',
-                      marginTop: '12px',
-                      textAlign: 'center',
-                    }}>
-                      {error}
-                    </div>
-                  )}
-
-                  <div style={{
-                    display: 'flex',
-                    gap: '8px',
-                    marginTop: '16px',
-                  }}>
-                    <button
-                      className="btn-secondary"
-                      style={{ flex: 1 }}
-                      onClick={() => {
-                        setShowScoreModal(false)
-                        setSelectedMatchIndex(null)
-                        setScore1('')
-                        setScore2('')
-                        setError('')
-                      }}
-                    >
-                      Cancel
-                    </button>
-                    <button
-                      className="btn-primary"
-                      style={{ flex: 1 }}
-                      onClick={handleSaveScore}
-                      disabled={busy}
-                    >
-                      {busy ? 'Saving...' : 'Save Score'}
-                    </button>
-                  </div>
-
-                  <div style={{ marginTop: '8px', textAlign: 'center' }}>
-                    <button
-                      style={{
-                        background: 'none',
-                        border: '1px solid #d0ddd0',
-                        borderRadius: '6px',
-                        padding: '6px 12px',
-                        fontSize: '12px',
-                        color: '#6a7a6a',
-                        cursor: 'pointer',
-                        width: '100%',
-                      }}
-                      onClick={handleStartLive}
-                    >
-                      ⚡ Start Live
-                    </button>
-                  </div>
-                </>
-              )
-            })()}
-          </div>
-        </div>
+          onStartLive={handleStartLive}
+        />
       )}
     </div>
   )
