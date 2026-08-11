@@ -11,6 +11,10 @@ import {
 } from '../../utils/tournament'
 import { generatePIN, hashPIN, savePINToStorage } from '../../utils/pinUtils'
 import PlayerPicker from '../PlayerPicker'
+import PlayerSelection from './TournamentSetup/PlayerSelection'
+import TeamBuilder from './TournamentSetup/TeamBuilder'
+import KnockoutSettings from './TournamentSetup/KnockoutSettings'
+import RoundsSelector from './TournamentSetup/RoundsSelector'
 
 const TOURNAMENT_TYPES = [
   { id: 'americano', label: 'Americano', desc: 'Rotating partners' },
@@ -42,27 +46,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [bronzeMatch, setBronzeMatch] = useState(false)
   const [knockoutMatchType, setKnockoutMatchType] = useState('singles')
 
-  // ============================================================
-  // ADD PLAYER — Uses shared getOrCreatePlayer with similarity check
-  // ============================================================
-  const handleAddPlayer = async () => {
-    const trimmed = newPlayerName.trim()
-    if (!trimmed) return
-
-    try {
-      const player = await getOrCreatePlayer(trimmed)
-
-      if (refreshPlayers) refreshPlayers()
-
-      if (!selectedPlayers.find(p => p.id === player.id)) {
-        setSelectedPlayers(prev => [...prev, player])
-      }
-      setNewPlayerName('')
-    } catch (err) {
-      alert('Error adding player: ' + err.message)
-    }
-  }
-
   const togglePlayer = (player) => {
     setSelectedPlayers(prev => {
       const exists = prev.find(p => p.id === player.id)
@@ -71,6 +54,16 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       } else {
         return [...prev, player]
       }
+    })
+  }
+
+  const moveSelectedPlayer = (index, direction) => {
+    setSelectedPlayers(prev => {
+      const next = [...prev]
+      const target = index + direction
+      if (target < 0 || target >= next.length) return prev
+      ;[next[index], next[target]] = [next[target], next[index]]
+      return next
     })
   }
 
@@ -109,37 +102,20 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
     return `${typeLabel} Tournament - ${date}`
   }
 
-  const autoCreateTeams = () => {
-    if (selectedPlayers.length < 2) {
-      setError('Need at least 2 players to create teams.')
-      return
-    }
+  const handleAddPlayer = async () => {
+    const trimmed = newPlayerName.trim()
+    if (!trimmed) return
 
-    if (selectedPlayers.length % 2 !== 0) {
-      setError('Need an even number of players for Fixed Partner. (4, 6, 8)')
-      return
-    }
-
-    const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5)
-    const teams = []
-    for (let i = 0; i < shuffled.length; i += 2) {
-      if (i + 1 < shuffled.length) {
-        teams.push({
-          player1: shuffled[i],
-          player2: shuffled[i + 1],
-        })
+    try {
+      const player = await getOrCreatePlayer(trimmed)
+      if (refreshPlayers) refreshPlayers()
+      if (!selectedPlayers.find(p => p.id === player.id)) {
+        setSelectedPlayers(prev => [...prev, player])
       }
+      setNewPlayerName('')
+    } catch (err) {
+      alert('Error adding player: ' + err.message)
     }
-    setFixedTeams(teams)
-    setError('')
-  }
-
-  const removeTeam = (index) => {
-    setFixedTeams(fixedTeams.filter((_, i) => i !== index))
-  }
-
-  const clearTeams = () => {
-    setFixedTeams([])
   }
 
   const startTournament = async () => {
@@ -168,7 +144,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           setBusy(false)
           return
         }
-        // For knockout, we don't need max rounds check
       }
 
       if (tournamentType === 'americano' || tournamentType === 'mexicano') {
@@ -182,7 +157,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       const finalName = tournamentName.trim() || getDefaultName()
       const numRounds = useFullRoundRobin ? getMaxRounds() : totalRounds
 
-      // Skip rounds validation for knockout
       if (tournamentType !== 'knockout' && numRounds < 1) {
         setError('Please select number of rounds.')
         setBusy(false)
@@ -215,7 +189,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch, knockoutMatchType)
       }
 
-      // Insert tournament
       const { data, error: insertError } = await supabase
         .from('tennis_tournaments')
         .insert({
@@ -234,7 +207,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       if (insertError) throw insertError
 
-      // Generate and store admin PIN
       const pin = generatePIN()
       const pinHash = await hashPIN(pin)
 
@@ -370,270 +342,42 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       {/* Knockout Settings */}
       {isKnockout && (
-        <>
-          <span style={labelStyle}>Match Type</span>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-            <button
-              style={toggleButtonStyle(knockoutMatchType === 'singles')}
-              onClick={() => setKnockoutMatchType('singles')}
-            >
-              Singles
-            </button>
-            <button
-              style={toggleButtonStyle(knockoutMatchType === 'doubles')}
-              onClick={() => setKnockoutMatchType('doubles')}
-            >
-              Doubles
-            </button>
-          </div>
-
-          <span style={labelStyle}>Seeding</span>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-            <button
-              style={toggleButtonStyle(seeding === 'random')}
-              onClick={() => setSeeding('random')}
-            >
-              Random
-            </button>
-            <button
-              style={toggleButtonStyle(seeding === 'ranked')}
-              onClick={() => setSeeding('ranked')}
-            >
-              Ranked
-            </button>
-          </div>
-
-          <span style={labelStyle}>Bronze Match</span>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-            <button
-              style={toggleButtonStyle(bronzeMatch === false)}
-              onClick={() => setBronzeMatch(false)}
-            >
-              OFF
-            </button>
-            <button
-              style={toggleButtonStyle(bronzeMatch === true)}
-              onClick={() => setBronzeMatch(true)}
-            >
-              ON
-            </button>
-          </div>
-        </>
+        <KnockoutSettings
+          knockoutMatchType={knockoutMatchType}
+          setKnockoutMatchType={setKnockoutMatchType}
+          seeding={seeding}
+          setSeeding={setSeeding}
+          bronzeMatch={bronzeMatch}
+          setBronzeMatch={setBronzeMatch}
+          selectedPlayers={selectedPlayers}
+          moveSelectedPlayer={moveSelectedPlayer}
+        />
       )}
 
       {/* Player Selection */}
       {!isFixedPartner && (
-        <>
-          <span style={labelStyle}>Select Players ({selectedPlayers.length} selected)</span>
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-            <button
-              className="btn-secondary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={selectAll}
-            >
-              Select All
-            </button>
-            <button
-              className="btn-secondary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={clearAll}
-            >
-              Clear All
-            </button>
-          </div>
-
-          <div style={{
-            maxHeight: '180px',
-            overflowY: 'auto',
-            border: '1px solid #d0ddd0',
-            borderRadius: '8px',
-            padding: '8px',
-            marginBottom: '8px',
-            background: '#f8faf8',
-          }}>
-            {players.map((player) => {
-              const isSelected = selectedPlayers.find(p => p.id === player.id)
-              return (
-                <label
-                  key={player.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '4px 8px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    background: isSelected ? 'rgba(212, 233, 75, 0.15)' : 'transparent',
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!isSelected}
-                    onChange={() => togglePlayer(player)}
-                  />
-                  <span>{player.name}</span>
-                </label>
-              )
-            })}
-            {players.length === 0 && (
-              <div style={{ padding: '8px', color: '#6a7a6a', textAlign: 'center' }}>
-                No players available. Add a player below.
-              </div>
-            )}
-          </div>
-
-          {/* Add New Player */}
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
-            <input
-              type="text"
-              placeholder="Add new player..."
-              value={newPlayerName}
-              onChange={(e) => setNewPlayerName(e.target.value)}
-              style={{
-                flex: 1,
-                padding: '8px 12px',
-                borderRadius: '6px',
-                border: '1px solid #d0ddd0',
-                background: '#ffffff',
-                color: '#1a2a1a',
-                fontSize: '14px',
-                outline: 'none',
-                marginBottom: 0,
-              }}
-              onKeyDown={(e) => {
-                if (e.key === 'Enter') handleAddPlayer()
-              }}
-            />
-            <button
-              className="btn-primary"
-              style={{ width: 'auto', padding: '8px 16px', fontSize: '13px' }}
-              onClick={handleAddPlayer}
-              disabled={!newPlayerName.trim()}
-            >
-              Add
-            </button>
-          </div>
-        </>
+        <PlayerSelection
+          players={players}
+          selectedPlayers={selectedPlayers}
+          togglePlayer={togglePlayer}
+          selectAll={selectAll}
+          clearAll={clearAll}
+          newPlayerName={newPlayerName}
+          setNewPlayerName={setNewPlayerName}
+          handleAddPlayer={handleAddPlayer}
+        />
       )}
 
       {/* Fixed Partner Team Builder */}
       {isFixedPartner && (
-        <>
-          <span style={labelStyle}>Create Teams ({fixedTeams.length} teams)</span>
-
-          <div style={{
-            maxHeight: '120px',
-            overflowY: 'auto',
-            border: '1px solid #d0ddd0',
-            borderRadius: '8px',
-            padding: '8px',
-            marginBottom: '8px',
-            background: '#f8faf8',
-          }}>
-            {players.map((player) => {
-              const inTeam = fixedTeams.some(t => t.player1.id === player.id || t.player2.id === player.id)
-              const isSelected = selectedPlayers.find(p => p.id === player.id)
-              return (
-                <label
-                  key={player.id}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: '8px',
-                    padding: '2px 8px',
-                    borderRadius: '4px',
-                    cursor: 'pointer',
-                    background: inTeam ? 'rgba(74, 222, 128, 0.1)' : (isSelected ? 'rgba(212, 233, 75, 0.1)' : 'transparent'),
-                  }}
-                >
-                  <input
-                    type="checkbox"
-                    checked={!!isSelected}
-                    onChange={() => togglePlayer(player)}
-                  />
-                  <span style={{ color: inTeam ? '#4ade80' : '#1a2a1a' }}>
-                    {player.name} {inTeam ? '✅' : ''}
-                  </span>
-                </label>
-              )
-            })}
-          </div>
-
-          <div style={{ display: 'flex', gap: '6px', marginBottom: '8px', flexWrap: 'wrap' }}>
-            <button
-              className="btn-primary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={autoCreateTeams}
-              disabled={selectedPlayers.length < 2 || selectedPlayers.length % 2 !== 0}
-            >
-              ⚡ Auto Create Teams
-            </button>
-            <button
-              className="btn-secondary"
-              style={{ width: 'auto', padding: '4px 12px', fontSize: '12px' }}
-              onClick={clearTeams}
-            >
-              Clear Teams
-            </button>
-          </div>
-
-          {selectedPlayers.length > 0 && selectedPlayers.length % 2 !== 0 && (
-            <div style={{ fontSize: '12px', color: '#f87171', marginBottom: '8px' }}>
-              ⚠️ Need even number of players for Fixed Partner. Currently: {selectedPlayers.length}
-            </div>
-          )}
-
-          {fixedTeams.length > 0 && (
-            <div style={{
-              border: '1px solid #d0ddd0',
-              borderRadius: '8px',
-              padding: '8px',
-              background: '#f8faf8',
-              marginBottom: '8px',
-            }}>
-              {fixedTeams.map((team, index) => (
-                <div
-                  key={index}
-                  style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    padding: '4px 8px',
-                    borderBottom: index < fixedTeams.length - 1 ? '1px solid #e8f0e6' : 'none',
-                  }}
-                >
-                  <span style={{ fontWeight: '600' }}>
-                    {team.player1.name} / {team.player2.name}
-                  </span>
-                  <button
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      color: '#c0392b',
-                      cursor: 'pointer',
-                      fontSize: '14px',
-                    }}
-                    onClick={() => removeTeam(index)}
-                  >
-                    ✕
-                  </button>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {fixedTeams.length === 0 && (
-            <div style={{ fontSize: '12px', color: '#6a7a6a', textAlign: 'center', padding: '8px', marginBottom: '8px' }}>
-              Select players above and click "Auto Create Teams" to create teams.
-            </div>
-          )}
-
-          {fixedTeams.length > 0 && fixedTeams.length < 2 && (
-            <div style={{ fontSize: '12px', color: '#fbbf24', marginBottom: '8px' }}>
-              ⚠️ Need at least 2 teams to start. Currently: {fixedTeams.length}
-            </div>
-          )}
-        </>
+        <TeamBuilder
+          players={players}
+          selectedPlayers={selectedPlayers}
+          fixedTeams={fixedTeams}
+          setFixedTeams={setFixedTeams}
+          setError={setError}
+          togglePlayer={togglePlayer}
+        />
       )}
 
       {/* Standing By (not for knockout) */}
@@ -656,78 +400,16 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
 
       {/* Rounds (not for knockout) */}
       {!isKnockout && (
-        <>
-          <span style={labelStyle}>Rounds</span>
-          <div style={{ marginBottom: '16px' }}>
-            <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-              <button
-                style={toggleButtonStyle(useFullRoundRobin)}
-                onClick={() => setUseFullRoundRobin(true)}
-              >
-                Full Round Robin
-              </button>
-              <button
-                style={toggleButtonStyle(!useFullRoundRobin)}
-                onClick={() => setUseFullRoundRobin(false)}
-              >
-                Custom Rounds
-              </button>
-            </div>
-
-            {!useFullRoundRobin && (
-              <div>
-                <span style={{ ...labelStyle, color: '#6a7a6a', fontSize: '12px' }}>
-                  Number of Rounds
-                </span>
-                <div style={{ display: 'flex', gap: '4px', flexWrap: 'wrap' }}>
-                  {Array.from({ length: Math.max(maxRounds, 1) }, (_, i) => i + 1).map((v) => (
-                    <button
-                      key={v}
-                      style={{
-                        padding: '6px 14px',
-                        borderRadius: '6px',
-                        border: totalRounds === v ? '2px solid #d4e94b' : '1px solid #d0ddd0',
-                        background: totalRounds === v ? '#d4e94b' : '#ffffff',
-                        color: totalRounds === v ? '#1a2a1a' : '#6a7a6a',
-                        fontWeight: totalRounds === v ? '700' : '400',
-                        cursor: 'pointer',
-                        fontSize: '14px',
-                        transition: 'all 0.2s ease',
-                      }}
-                      onClick={() => setTotalRounds(v)}
-                    >
-                      {v}
-                    </button>
-                  ))}
-                </div>
-                <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-                  Max rounds: {maxRounds}
-                </div>
-
-                {selectedPlayers.length % 2 !== 0 && totalRounds < maxRounds && (
-                  <div style={{
-                    fontSize: '12px',
-                    color: '#fbbf24',
-                    marginTop: '8px',
-                    padding: '8px 12px',
-                    background: 'rgba(251, 191, 36, 0.1)',
-                    borderRadius: '6px',
-                    border: '1px solid rgba(251, 191, 36, 0.2)',
-                  }}>
-                    ⚠️ With {totalRounds} rounds and {selectedPlayers.length} players, not all players will get the same number of byes.
-                    Some players may play fewer matches than others.
-                  </div>
-                )}
-              </div>
-            )}
-
-            {useFullRoundRobin && (
-              <div style={{ fontSize: '11px', color: '#6a7a6a', marginTop: '4px' }}>
-                {maxRounds} rounds · {isFixedPartner ? fixedTeams.length : selectedPlayers.length} {isFixedPartner ? 'teams' : 'players'}
-              </div>
-            )}
-          </div>
-        </>
+        <RoundsSelector
+          useFullRoundRobin={useFullRoundRobin}
+          setUseFullRoundRobin={setUseFullRoundRobin}
+          totalRounds={totalRounds}
+          setTotalRounds={setTotalRounds}
+          maxRounds={maxRounds}
+          selectedPlayers={selectedPlayers}
+          isFixedPartner={isFixedPartner}
+          fixedTeams={fixedTeams}
+        />
       )}
 
       {error && (
