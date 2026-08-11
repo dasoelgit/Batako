@@ -462,7 +462,17 @@ export function generateAmericanoRounds(
 // Competitive Pairing
 // ============================================================
 //
-// Round 1 is generated immediately.
+// Round 1 is generated immediately, using random 2v2 teams
+// (there are no standings yet to seed pairings from).
+//
+// FIX: Round 1 previously used generateMatchesFromPlayers,
+// which built 1v1 SINGLES matches. Every later round is built
+// by generateMexicanoPairings, which builds 2v2 DOUBLES teams.
+// That mismatch meant round 1 looked like a completely
+// different (singles) tournament from round 2 onward. Round 1
+// now builds doubles teams the same way, so the format is
+// consistent across every round.
+//
 // Later rounds are intentionally left as placeholders
 // because Mexicano pairing depends on live standings.
 //
@@ -473,17 +483,47 @@ export function generateMexicanoRounds(
 ) {
   const rounds = []
 
-  const shuffled = [...players].sort(
+  const allPlayers = [...players].filter(
+    player => !player.isBye
+  )
+
+  if (
+    allPlayers.length < 4 ||
+    totalRounds <= 0
+  ) {
+    return rounds
+  }
+
+  // Same "only full groups of 4 can play a doubles match" rule
+  // Americano uses. Any remainder sits out round 1 as an
+  // individual BYE.
+  const playersPerRound =
+    Math.floor(allPlayers.length / 4) * 4
+
+  const sitOutCount =
+    allPlayers.length - playersPerRound
+
+  const shuffled = [...allPlayers].sort(
     () => Math.random() - 0.5
   )
 
-  const byeCounts = {}
+  const sitOuts = shuffled.slice(0, sitOutCount)
+  const playing = shuffled.slice(sitOutCount)
 
-  const round1Matches =
-    generateMatchesFromPlayers(
-      shuffled,
-      byeCounts
+  const round1Matches = []
+
+  for (let i = 0; i < playing.length; i += 4) {
+    round1Matches.push(
+      makeMatch(
+        [playing[i], playing[i + 1]],
+        [playing[i + 2], playing[i + 3]]
+      )
     )
+  }
+
+  sitOuts.forEach(player => {
+    round1Matches.push(makeBye([player]))
+  })
 
   rounds.push({
     round_number: 1,
@@ -594,6 +634,17 @@ export function generateMexicanoPairings(
     }
   }
 
+  // Build partner history from previous rounds.
+  //
+  // FIX: previousPairings entries are the concatenation of a past
+  // match's two partner pairs — [team1p1, team1p2, team2p1, team2p2].
+  // The old code marked ALL 6 combinations within that 4-id group as
+  // "already paired", which conflated partners with opponents. A
+  // player who simply played AGAINST someone last round was then
+  // treated as ineligible to PARTNER with them later, shrinking the
+  // pool of "fresh" partner options faster than it should. Now only
+  // the two real partner pairs (first two ids, last two ids) are
+  // recorded as partner history.
   const pairHistory =
     Object.fromEntries(
       players.map(player => [
@@ -603,31 +654,18 @@ export function generateMexicanoPairings(
     )
 
   previousPairings.forEach(pair => {
-    if (!pair || pair.length < 2) {
+    if (!pair || pair.length < 4) {
       return
     }
 
-    for (
-      let i = 0;
-      i < pair.length;
-      i++
-    ) {
-      for (
-        let j = i + 1;
-        j < pair.length;
-        j++
-      ) {
-        if (
-          pairHistory[pair[i]] &&
-          pairHistory[pair[j]]
-        ) {
-          addHistory(
-            pairHistory,
-            pair[i],
-            pair[j]
-          )
-        }
-      }
+    const [a1, a2, b1, b2] = pair
+
+    if (pairHistory[a1] && pairHistory[a2]) {
+      addHistory(pairHistory, a1, a2)
+    }
+
+    if (pairHistory[b1] && pairHistory[b2]) {
+      addHistory(pairHistory, b1, b2)
     }
   })
 
@@ -874,75 +912,6 @@ export function generateFixedPartnerRounds(
   }
 
   return rounds
-}
-
-// ============================================================
-// HELPER
-// Generate Singles/Mexicano first-round matches
-// ============================================================
-
-function generateMatchesFromPlayers(
-  players,
-  byeCounts = {}
-) {
-  const available = [...players]
-  const matches = []
-
-  let byePlayer = null
-
-  if (available.length % 2 !== 0) {
-    const minBye = Math.min(
-      ...available.map(
-        player =>
-          byeCounts[player.id] ?? 0
-      )
-    )
-
-    const candidate =
-      available.find(
-        player =>
-          (byeCounts[player.id] ?? 0) ===
-          minBye
-      )
-
-    byePlayer =
-      candidate ??
-      available[available.length - 1]
-
-    const index =
-      available.findIndex(
-        player =>
-          player.id === byePlayer.id
-      )
-
-    available.splice(index, 1)
-
-    byeCounts[byePlayer.id] =
-      (byeCounts[byePlayer.id] ?? 0) + 1
-  }
-
-  for (
-    let i = 0;
-    i < available.length;
-    i += 2
-  ) {
-    if (available[i + 1]) {
-      matches.push(
-        makeMatch(
-          [available[i]],
-          [available[i + 1]]
-        )
-      )
-    }
-  }
-
-  if (byePlayer) {
-    matches.push(
-      makeBye([byePlayer])
-    )
-  }
-
-  return matches
 }
 
 // ============================================================
