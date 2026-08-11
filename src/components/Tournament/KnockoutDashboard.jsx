@@ -106,8 +106,9 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       const round = updatedRounds[selectedRoundIndex]
       const match = round.matches[selectedMatchIndex]
 
-      // Determine winner
+            // Determine winner (and loser, in case a bronze match needs them)
       let winner = null
+      let loser = null
       let draw = false
       if (s1 > s2) {
         // Team 1 wins
@@ -120,6 +121,15 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         } else {
           winner = match.team1[0]
         }
+        if (isDoubles && match.team2.length > 0) {
+          loser = {
+            id: match.team2.map(p => p.id).join('-'),
+            name: match.team2.map(p => p.name).join(' / '),
+            players: match.team2,
+          }
+        } else {
+          loser = match.team2[0]
+        }
       } else if (s2 > s1) {
         // Team 2 wins
         if (isDoubles && match.team2.length > 0) {
@@ -131,10 +141,18 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         } else {
           winner = match.team2[0]
         }
+        if (isDoubles && match.team1.length > 0) {
+          loser = {
+            id: match.team1.map(p => p.id).join('-'),
+            name: match.team1.map(p => p.name).join(' / '),
+            players: match.team1,
+          }
+        } else {
+          loser = match.team1[0]
+        }
       } else {
         draw = true
       }
-
       if (draw) {
         setError('Knockout matches cannot end in a draw. Please enter a valid score.')
         setBusy(false)
@@ -228,7 +246,77 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           }
         }
       }
+            // Determine winner (and loser, in case a bronze match needs them)
+      let winner = null
+      let loser = null
+      let draw = false
+      if (s1 > s2) {
+        // Team 1 wins
+        if (isDoubles && match.team1.length > 0) {
+          winner = {
+            id: match.team1.map(p => p.id).join('-'),
+            name: match.team1.map(p => p.name).join(' / '),
+            players: match.team1,
+          }
+        } else {
+          winner = match.team1[0]
+        }
+        if (isDoubles && match.team2.length > 0) {
+          loser = {
+            id: match.team2.map(p => p.id).join('-'),
+            name: match.team2.map(p => p.name).join(' / '),
+            players: match.team2,
+          }
+        } else {
+          loser = match.team2[0]
+        }
+      } else if (s2 > s1) {
+        // Team 2 wins
+        if (isDoubles && match.team2.length > 0) {
+          winner = {
+            id: match.team2.map(p => p.id).join('-'),
+            name: match.team2.map(p => p.name).join(' / '),
+            players: match.team2,
+          }
+        } else {
+          winner = match.team2[0]
+        }
+        if (isDoubles && match.team1.length > 0) {
+          loser = {
+            id: match.team1.map(p => p.id).join('-'),
+            name: match.team1.map(p => p.name).join(' / '),
+            players: match.team1,
+          }
+        } else {
+          loser = match.team1[0]
+        }
+      } else {
+        draw = true
+      }
 
+      // Update bronze match with the loser, if this was a semifinal
+      const bronzeRound = updatedRounds.find(r => r.isBronze)
+      if (bronzeRound && loser && round.round_name === 'Semifinal') {
+        const bronzeMatch = bronzeRound.matches[0]
+        if (bronzeMatch) {
+          if (bronzeMatch.team1?.[0]?.isPlaceholder && bronzeMatch.team1[0].id === match.id) {
+            if (isDoubles && loser.players) {
+              bronzeMatch.team1 = loser.players
+              bronzeMatch.team1Name = loser.name
+            } else {
+              bronzeMatch.team1 = [loser]
+            }
+          } else if (bronzeMatch.team2?.[0]?.isPlaceholder && bronzeMatch.team2[0].id === match.id) {
+            if (isDoubles && loser.players) {
+              bronzeMatch.team2 = loser.players
+              bronzeMatch.team2Name = loser.name
+            } else {
+              bronzeMatch.team2 = [loser]
+            }
+          }
+        }
+      }
+      
       // Update tournament in database
       const { error: updateError } = await supabase
         .from('tennis_tournaments')
