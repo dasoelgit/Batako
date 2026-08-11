@@ -21,8 +21,8 @@ const TOURNAMENT_TYPES = [
 ]
 
 const POINTS_DISTRIBUTION_OPTIONS = [
-  { id: 'win', label: 'By Win (3-0)' },
-  { id: 'point', label: 'By Point (score-based)' },
+  { id: 'win', label: 'By Win' },
+  { id: 'point', label: 'By Point' },
 ]
 
 export default function TournamentSetup({ players, refreshPlayers, onTournamentCreated, onBack }) {
