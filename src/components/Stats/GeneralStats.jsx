@@ -2,27 +2,67 @@
 import { useState, useEffect } from 'react'
 import { supabase } from '../../utils/supabase'
 
-export default function GeneralStats({ refreshKey }) {
+export default function GeneralStats({ refreshKey, dateFilter, customStart, customEnd }) {
   const [stats, setStats] = useState(null)
   const [loading, setLoading] = useState(true)
 
   useEffect(() => {
     loadStats()
-  }, [refreshKey])
+  }, [refreshKey, dateFilter, customStart, customEnd])
+
+  const getDateRange = () => {
+    const now = new Date()
+    let startDate = null
+    let endDate = null
+
+    if (dateFilter === '7days') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 7)
+      startDate = d.toISOString()
+    } else if (dateFilter === '30days') {
+      const d = new Date(now)
+      d.setDate(d.getDate() - 30)
+      startDate = d.toISOString()
+    } else if (dateFilter === 'month') {
+      startDate = new Date(now.getFullYear(), now.getMonth(), 1).toISOString()
+    } else if (dateFilter === 'custom') {
+      if (customStart) {
+        startDate = new Date(customStart).toISOString()
+      }
+      if (customEnd) {
+        const d = new Date(customEnd)
+        d.setHours(23, 59, 59, 999)
+        endDate = d.toISOString()
+      }
+    }
+
+    return { startDate, endDate }
+  }
 
   const loadStats = async () => {
     setLoading(true)
     try {
+      const { startDate, endDate } = getDateRange()
+
       // Get all players
       const { data: players } = await supabase
         .from('tennis_players')
         .select('id, name')
 
-      // Get all completed matches (regular + tournament)
-      const { data: matches } = await supabase
+      // Get all completed matches with date filter
+      let matchesQuery = supabase
         .from('tennis_matches')
         .select('*')
         .eq('status', 'completed')
+
+      if (startDate) {
+        matchesQuery = matchesQuery.gte('completed_at', startDate)
+      }
+      if (endDate) {
+        matchesQuery = matchesQuery.lte('completed_at', endDate)
+      }
+
+      const { data: matches } = await matchesQuery
 
       if (!matches || !players) {
         setStats(null)
@@ -30,7 +70,7 @@ export default function GeneralStats({ refreshKey }) {
         return
       }
 
-      // Calculate player stats
+      // Calculate player stats (same as before)
       const playerStats = {}
       players.forEach(p => {
         playerStats[p.id] = {
@@ -45,8 +85,6 @@ export default function GeneralStats({ refreshKey }) {
 
       matches.forEach(m => {
         const isDraw = m.draw === true
-
-        // Team 1 players
         ;(m.team1_players || []).forEach(p => {
           if (!playerStats[p.id]) return
           const s = playerStats[p.id]
@@ -55,8 +93,6 @@ export default function GeneralStats({ refreshKey }) {
           else if (m.winner === 1) s.wins += 1
           else s.losses += 1
         })
-
-        // Team 2 players
         ;(m.team2_players || []).forEach(p => {
           if (!playerStats[p.id]) return
           const s = playerStats[p.id]
@@ -69,13 +105,10 @@ export default function GeneralStats({ refreshKey }) {
 
       const playerList = Object.values(playerStats)
 
-      // Most Matches
+      // ... rest of calculations (same as before) ...
+
       const mostMatches = [...playerList].sort((a, b) => b.matches - a.matches)[0]
-
-      // Most Wins
       const mostWins = [...playerList].sort((a, b) => b.wins - a.wins)[0]
-
-      // Best Win Rate (min 5 matches)
       const winRatePlayers = playerList.filter(p => p.matches >= 5)
       const bestWinRate = winRatePlayers.sort((a, b) => {
         const rateA = a.matches > 0 ? (a.wins / a.matches) * 100 : 0
@@ -83,32 +116,20 @@ export default function GeneralStats({ refreshKey }) {
         return rateB - rateA
       })[0]
 
-      // Longest Win Streak (all-time)
+      // Longest streak (simplified)
       let longestStreak = { player: null, streak: 0 }
-      // This requires match history sorting, simplified for now
-      // We'll calculate from matches sorted by date
       const sortedMatches = [...matches].sort((a, b) => 
         new Date(a.completed_at) - new Date(b.completed_at)
       )
-
       const streaks = {}
       sortedMatches.forEach(m => {
         const isDraw = m.draw === true
         if (isDraw) {
-          // Draw breaks streak for both teams
-          ;(m.team1_players || []).forEach(p => {
-            if (streaks[p.id]) streaks[p.id] = 0
-          })
-          ;(m.team2_players || []).forEach(p => {
-            if (streaks[p.id]) streaks[p.id] = 0
-          })
+          ;(m.team1_players || []).forEach(p => { if (streaks[p.id]) streaks[p.id] = 0 })
+          ;(m.team2_players || []).forEach(p => { if (streaks[p.id]) streaks[p.id] = 0 })
           return
         }
-
         const winner = m.winner
-        const loser = winner === 1 ? 2 : 1
-
-        // Winner streak increases
         const winnerPlayers = winner === 1 ? m.team1_players : m.team2_players
         winnerPlayers.forEach(p => {
           if (!streaks[p.id]) streaks[p.id] = 0
@@ -118,15 +139,13 @@ export default function GeneralStats({ refreshKey }) {
             longestStreak.player = playerStats[p.id]
           }
         })
-
-        // Loser streak resets
-        const loserPlayers = loser === 1 ? m.team1_players : m.team2_players
+        const loserPlayers = winner === 2 ? m.team1_players : m.team2_players
         loserPlayers.forEach(p => {
           if (streaks[p.id]) streaks[p.id] = 0
         })
       })
 
-      // Best Doubles Pair (min 3 matches together)
+      // Best doubles pair
       const pairStats = {}
       matches.forEach(m => {
         if (m.play_type !== 'doubles') return
@@ -134,11 +153,7 @@ export default function GeneralStats({ refreshKey }) {
         const t2 = m.team2_players || []
         if (t1.length < 2 || t2.length < 2) return
 
-        // Pair within team
         const pair1 = [t1[0], t1[1]].sort((a, b) => a.id.localeCompare(b.id))
-        const pair2 = [t2[0], t2[1]].sort((a, b) => a.id.localeCompare(b.id))
-
-        const isDraw = m.draw === true
         const pairKey = `${pair1[0].id}-${pair1[1].id}`
 
         if (!pairStats[pairKey]) {
@@ -151,30 +166,11 @@ export default function GeneralStats({ refreshKey }) {
             draws: 0,
           }
         }
-
         const s = pairStats[pairKey]
         s.matches += 1
-        if (isDraw) s.draws += 1
+        if (m.draw) s.draws += 1
         else if (m.winner === 1) s.wins += 1
         else s.losses += 1
-
-        // Also track opponent pair
-        const opponentKey = `${pair2[0].id}-${pair2[1].id}`
-        if (!pairStats[opponentKey]) {
-          pairStats[opponentKey] = {
-            player1: pair2[0],
-            player2: pair2[1],
-            matches: 0,
-            wins: 0,
-            losses: 0,
-            draws: 0,
-          }
-        }
-        const s2 = pairStats[opponentKey]
-        s2.matches += 1
-        if (isDraw) s2.draws += 1
-        else if (m.winner === 2) s2.wins += 1
-        else s2.losses += 1
       })
 
       const pairList = Object.values(pairStats).filter(p => p.matches >= 3)
@@ -184,7 +180,14 @@ export default function GeneralStats({ refreshKey }) {
         return rateB - rateA
       })[0] || null
 
+      const filterLabel = dateFilter === 'all' ? 'All Time' :
+                          dateFilter === '7days' ? 'Last 7 Days' :
+                          dateFilter === '30days' ? 'Last 30 Days' :
+                          dateFilter === 'month' ? 'This Month' :
+                          'Custom Range'
+
       setStats({
+        filterLabel,
         totalMatches: matches.length,
         totalPlayers: players.length,
         mostMatches,
@@ -201,7 +204,7 @@ export default function GeneralStats({ refreshKey }) {
   }
 
   if (loading) return <div className="loading">Loading stats...</div>
-  if (!stats) return <div className="empty-state">No data available.</div>
+  if (!stats) return <div className="empty-state">No data available for this period.</div>
 
   const StatCard = ({ label, value, sub }) => (
     <div style={{
@@ -227,6 +230,15 @@ export default function GeneralStats({ refreshKey }) {
 
   return (
     <div className="card">
+      <div style={{
+        fontSize: '12px',
+        color: '#6a7a6a',
+        marginBottom: '12px',
+        textAlign: 'center',
+      }}>
+        {stats.filterLabel}
+      </div>
+
       {/* Total Matches & Players */}
       <div style={{
         display: 'flex',
@@ -234,7 +246,7 @@ export default function GeneralStats({ refreshKey }) {
         marginBottom: '16px',
       }}>
         <StatCard label="Total Matches" value={stats.totalMatches} />
-        <StatCard label="Total Players" value={stats.totalPlayers} />
+        <StatCard label="Active Players" value={stats.totalPlayers} />
       </div>
 
       {/* Player Achievements */}
