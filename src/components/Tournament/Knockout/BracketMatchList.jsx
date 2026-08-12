@@ -1,31 +1,18 @@
-// src/components/Tournament/knockout/BracketMatchList.jsx
+// src/components/Tournament/Knockout/BracketMatchList.jsx
 export default function BracketMatchList({
   rounds,
   getMatchLabel,
   getTeamName,
   isMatchReady,
   onMatchClick,
-  champion,
-  bronzeWinner,
 }) {
-  // Count matches per round for visual alignment
-  const getMaxMatchesInRound = () => {
-    let max = 0
-    rounds.forEach(round => {
-      const count = round.matches.filter(m => !m.isBye).length
-      if (count > max) max = count
-    })
-    return max
-  }
-
-  // Build bracket columns
+  // Build bracket columns (same as before)
   const buildBracketColumns = () => {
     const columns = []
 
     rounds.forEach((round, roundIndex) => {
       const matches = round.matches.filter(m => !m.isBye)
       
-      // Calculate vertical position for each match
       const totalSlots = Math.pow(2, rounds.length - roundIndex)
       
       const slots = []
@@ -75,18 +62,20 @@ export default function BracketMatchList({
   return (
     <div style={{
       display: 'flex',
-      gap: '24px',
+      gap: 'clamp(12px, 2vw, 24px)',
       justifyContent: 'center',
-      padding: '16px 8px',
+      padding: '12px 8px',
       minWidth: 'max-content',
       background: '#f8faf8',
       borderRadius: '8px',
       overflowX: 'auto',
+      WebkitOverflowScrolling: 'touch',
+      scrollSnapType: 'x mandatory',
     }}>
       {columns.map((column, colIndex) => {
         const isFinal = column.roundName === 'Final' || column.roundName === '🥉 Bronze'
-        const matchHeight = isFinal ? 80 : 60
-        const spacing = isFinal ? 0 : 20
+        const matchHeight = isFinal ? 70 : 50
+        const spacing = isFinal ? 0 : 12
         
         return (
           <div
@@ -95,21 +84,23 @@ export default function BracketMatchList({
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
-              minWidth: isFinal ? '120px' : '140px',
+              minWidth: isFinal ? '100px' : '110px',
+              maxWidth: isFinal ? '140px' : '150px',
               position: 'relative',
+              scrollSnapAlign: 'start',
             }}
           >
             {/* Round Label */}
             <div style={{
-              fontSize: '11px',
+              fontSize: 'clamp(9px, 1.2vw, 11px)',
               fontWeight: '600',
               color: '#6a7a6a',
               textTransform: 'uppercase',
               letterSpacing: '0.05em',
-              marginBottom: '12px',
-              padding: '4px 12px',
+              marginBottom: '10px',
+              padding: '3px 10px',
               background: '#ffffff',
-              borderRadius: '12px',
+              borderRadius: '10px',
               border: '1px solid #d0ddd0',
               whiteSpace: 'nowrap',
             }}>
@@ -152,10 +143,11 @@ export default function BracketMatchList({
                   style={{
                     height: matchHeight,
                     width: '100%',
-                    minWidth: isFinal ? '120px' : '130px',
+                    minWidth: isFinal ? '90px' : '100px',
+                    maxWidth: isFinal ? '130px' : '140px',
                     marginBottom: spacing,
-                    padding: isFinal ? '12px 16px' : '8px 12px',
-                    borderRadius: '6px',
+                    padding: isFinal ? '8px 12px' : '6px 10px',
+                    borderRadius: '4px',
                     border: isCompleted 
                       ? '2px solid #4ade80' 
                       : isReady 
@@ -192,7 +184,7 @@ export default function BracketMatchList({
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    fontSize: isFinal ? '13px' : '11px',
+                    fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)',
                     fontWeight: isCompleted && winnerLabel === team1Label ? '700' : '400',
                     color: isCompleted && winnerLabel === team1Label ? '#4ade80' : '#1a2a1a',
                   }}>
@@ -200,13 +192,13 @@ export default function BracketMatchList({
                       overflow: 'hidden', 
                       textOverflow: 'ellipsis', 
                       whiteSpace: 'nowrap',
-                      maxWidth: '70px',
+                      maxWidth: '55px',
                     }}>
                       {team1Label}
                     </span>
                     {isCompleted && (
                       <span style={{ 
-                        fontSize: isFinal ? '13px' : '11px', 
+                        fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)', 
                         fontWeight: '600',
                         color: '#d4a843',
                         marginLeft: '4px',
@@ -221,7 +213,7 @@ export default function BracketMatchList({
                     display: 'flex',
                     justifyContent: 'space-between',
                     alignItems: 'center',
-                    fontSize: isFinal ? '13px' : '11px',
+                    fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)',
                     fontWeight: isCompleted && winnerLabel === team2Label ? '700' : '400',
                     color: isCompleted && winnerLabel === team2Label ? '#4ade80' : '#1a2a1a',
                   }}>
@@ -229,13 +221,13 @@ export default function BracketMatchList({
                       overflow: 'hidden', 
                       textOverflow: 'ellipsis', 
                       whiteSpace: 'nowrap',
-                      maxWidth: '70px',
+                      maxWidth: '55px',
                     }}>
                       {team2Label}
                     </span>
                     {isCompleted && (
                       <span style={{ 
-                        fontSize: isFinal ? '13px' : '11px', 
+                        fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)', 
                         fontWeight: '600',
                         color: '#d4a843',
                         marginLeft: '4px',
@@ -250,7 +242,7 @@ export default function BracketMatchList({
                     position: 'absolute',
                     top: '2px',
                     right: '4px',
-                    fontSize: '10px',
+                    fontSize: '8px',
                   }}>
                     {isCompleted ? '✅' : isReady ? '⏳' : '⏸️'}
                   </div>
