@@ -93,6 +93,16 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     return players.map(p => p.name).join(' / ')
   }
 
+  const isMexicanoRoundLocked = (round, match) => {
+    // Once the next round has actual results in it, that round's pairings
+    // were decided by this match's score. Editing it after the fact isn't
+    // allowed — the host has to live with what was recorded.
+    if (tournament.type !== 'mexicano') return false
+    if (!match.completed) return false // first-time entry is always fine
+    const nextRound = tournament.rounds.find(r => r.round_number === round.round_number + 1)
+    return !!nextRound?.matches?.some(m => m.completed)
+  }
+
   const handleMatchClick = (matchIndex) => {
     const round = tournament.rounds.find(r => r.round_number === selectedRound)
     const match = round.matches[matchIndex]
@@ -101,6 +111,11 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
     
     if (match.completed && !isAdmin) {
       alert('🔒 Only the tournament admin can edit completed matches.')
+      return
+    }
+
+    if (isMexicanoRoundLocked(round, match)) {
+      alert(`🔒 Round ${round.round_number + 1} has already been played based on this result, so this score is locked and can no longer be edited.`)
       return
     }
     
@@ -153,6 +168,12 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       const updatedRounds = [...tournament.rounds]
       const roundIndex = updatedRounds.findIndex(r => r.round_number === selectedRound)
       const match = updatedRounds[roundIndex].matches[selectedMatchIndex]
+
+      if (isMexicanoRoundLocked(updatedRounds[roundIndex], match)) {
+        setError(`Round ${selectedRound + 1} has already been played based on this result — this score is locked.`)
+        setBusy(false)
+        return
+      }
 
       let winner = null
       let draw = false
@@ -265,8 +286,12 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       if (tournament.type === 'mexicano') {
         const currentRoundComplete = isRoundComplete(updatedRounds[roundIndex])
         const nextRoundNumber = selectedRound + 1
+        const existingNextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
+        // If the next round already has a result in it, someone is editing an
+        // earlier round's score after play has moved on — don't clobber it.
+        const nextRoundAlreadyStarted = existingNextRound?.matches?.some(m => m.completed)
         
-        if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds) {
+        if (currentRoundComplete && nextRoundNumber <= tournament.total_rounds && !nextRoundAlreadyStarted) {
           const standings = calculateTournamentStandings(
             tournament.players,
             updatedRounds.slice(0, nextRoundNumber - 1),
@@ -308,9 +333,8 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
             byeCounts
           )
           
-          let nextRound = updatedRounds.find(r => r.round_number === nextRoundNumber)
-          if (nextRound) {
-            nextRound.matches = newPairings
+          if (existingNextRound) {
+            existingNextRound.matches = newPairings
           } else {
             updatedRounds.push({
               round_number: nextRoundNumber,
