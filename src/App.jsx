@@ -273,6 +273,7 @@ return (
         ) : tournamentView === 'setup' ? (
           <TournamentSetup
             players={players}
+            refreshPlayers={refreshPlayers}
             onTournamentCreated={handleTournamentCreated}
             onBack={handleTournamentBack}
           />
