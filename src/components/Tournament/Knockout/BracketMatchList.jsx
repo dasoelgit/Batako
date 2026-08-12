@@ -120,6 +120,12 @@ export default function BracketMatchList({
     return winner.name || 'Unknown'
   }
 
+  // Check if a team is a placeholder
+  const isPlaceholderTeam = (team) => {
+    if (!team || !Array.isArray(team) || team.length === 0) return false
+    return team.some(p => p?.isPlaceholder)
+  }
+
   if (columns.length === 0) {
     return (
       <div style={{
@@ -240,8 +246,21 @@ export default function BracketMatchList({
                 const { match, matchIndex } = slot
                 const isCompleted = match.completed
                 const isReady = isMatchReady(match)
-                const team1Label = getTeamName(match, 1)
-                const team2Label = getTeamName(match, 2)
+                
+                // Get team labels, checking for placeholders
+                let team1Label = getTeamName(match, 1)
+                let team2Label = getTeamName(match, 2)
+                
+                // If team is placeholder and match is completed, use winner name
+                if (isCompleted && match.winner) {
+                  const winnerLabel = getWinnerLabel(match)
+                  if (isPlaceholderTeam(match.team1) || match.team1Name === 'TBD') {
+                    team1Label = winnerLabel || 'TBD'
+                  }
+                  if (isPlaceholderTeam(match.team2) || match.team2Name === 'TBD') {
+                    team2Label = winnerLabel || 'TBD'
+                  }
+                }
 
                 const winnerLabel = getWinnerLabel(match)
                 const isWinner1 = isCompleted && winnerLabel && team1Label === winnerLabel
@@ -341,14 +360,14 @@ export default function BracketMatchList({
                       )}
                     </div>
 
-                    {/* Status indicator */}
+                    {/* Status indicator - removed ✅, kept only ⏳ and ⏸️ */}
                     <div style={{
                       position: 'absolute',
                       top: '2px',
                       right: '4px',
                       fontSize: '10px',
                     }}>
-                      {isCompleted ? '✅' : isReady ? '⏳' : '⏸️'}
+                      {!isCompleted && isReady ? '⏳' : (!isCompleted && !isReady ? '⏸️' : '')}
                     </div>
                   </div>
                 )
