@@ -41,6 +41,7 @@ export default function TournamentList({ onSelectTournament, onCreateNew }) {
       mexicano: 'Mexicano',
       singles: 'Singles',
       fixed_partner: 'Fixed Partner',
+      knockout: 'Knockout',
     }
     return labels[type] || type
   }
