@@ -312,26 +312,14 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         getMatchLabel={getMatchLabel}
       />
 
-      {rounds.map((round, roundIndex) => (
-        <div key={roundIndex} style={{ marginBottom: '16px' }}>
-          <div style={{
-            fontSize: '13px',
-            fontWeight: '600',
-            color: '#1a2a1a',
-            marginBottom: '8px',
-          }}>
-            {getRoundName(round)}
-          </div>
-
-          <BracketMatchList
-            matches={round.matches}
-            getMatchLabel={getMatchLabel}
-            getTeamName={getTeamName}
-            onMatchClick={(matchIndex) => handleMatchClick(roundIndex, matchIndex)}
-            isReady={isMatchReady}
-          />
-        </div>
-      ))}
+      {/* Bracket — uses BracketMatchList with full rounds data */}
+      <BracketMatchList
+        rounds={rounds}
+        getMatchLabel={getMatchLabel}
+        getTeamName={getTeamName}
+        isMatchReady={isMatchReady}
+        onMatchClick={handleMatchClick}
+      />
 
       {error && (
         <div style={{
