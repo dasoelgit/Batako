@@ -157,9 +157,48 @@ export function selectSitOuts(
 // ============================================================
 // FIND BEST PAIRING — Minimizes repeated partners
 // ============================================================
+//
+// Exhaustive search over all possible pairings is exact, but the number
+// of perfect matchings grows combinatorially ((n-1)!! for n items) and
+// can hang the browser for larger groups (confirmed to reliably freeze
+// for 20+ players once partner history makes zero-repeat pairings hard
+// to find). Above EXHAUSTIVE_PAIRING_LIMIT we fall back to a fast greedy
+// pairing instead — it may occasionally allow one extra repeat partner,
+// but it's guaranteed to run in well under a second at any size.
+
+const EXHAUSTIVE_PAIRING_LIMIT = 12
+
+function greedyPairing(items, history) {
+  const remaining = [...items]
+  const pairs = []
+
+  while (remaining.length > 0) {
+    const first = remaining.shift()
+    let bestIndex = 0
+    let bestCost = Infinity
+
+    for (let i = 0; i < remaining.length; i++) {
+      const cost = history[first.id]?.has(remaining[i].id) ? 1 : 0
+      if (cost < bestCost) {
+        bestCost = cost
+        bestIndex = i
+        if (bestCost === 0) break
+      }
+    }
+
+    const [second] = remaining.splice(bestIndex, 1)
+    pairs.push([first, second])
+  }
+
+  return pairs
+}
 
 export function findBestPairing(items, history) {
   if (items.length % 2 !== 0) return []
+
+  if (items.length > EXHAUSTIVE_PAIRING_LIMIT) {
+    return greedyPairing(items, history)
+  }
 
   let best = null
 
@@ -193,9 +232,47 @@ export function findBestPairing(items, history) {
 // ============================================================
 // FIND BEST TEAM MATCHES — Minimizes repeated opponents
 // ============================================================
+//
+// Same combinatorial-blowup concern as findBestPairing, scaled to the
+// number of teams instead of players. Falls back to greedy above the
+// same limit for the same reason.
+
+function greedyTeamMatches(teams, opposed) {
+  const remaining = [...teams]
+  const matches = []
+
+  while (remaining.length > 0) {
+    const first = remaining.shift()
+    let bestIndex = 0
+    let bestCost = Infinity
+
+    for (let i = 0; i < remaining.length; i++) {
+      let cost = 0
+      first.forEach(a => {
+        remaining[i].forEach(b => {
+          if (opposed[a.id]?.has(b.id)) cost += 1
+        })
+      })
+      if (cost < bestCost) {
+        bestCost = cost
+        bestIndex = i
+        if (bestCost === 0) break
+      }
+    }
+
+    const [second] = remaining.splice(bestIndex, 1)
+    matches.push([first, second])
+  }
+
+  return matches
+}
 
 export function findBestTeamMatches(teams, opposed) {
   if (teams.length % 2 !== 0) return []
+
+  if (teams.length > EXHAUSTIVE_PAIRING_LIMIT) {
+    return greedyTeamMatches(teams, opposed)
+  }
 
   let best = null
 
