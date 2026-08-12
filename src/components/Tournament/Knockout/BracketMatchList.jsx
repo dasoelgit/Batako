@@ -1,32 +1,42 @@
-// src/components/Tournament/Knockout/BracketMatchList.jsx
+// src/components/Tournament/knockout/BracketMatchList.jsx
+import { useEffect, useRef, useState } from 'react'
+
 export default function BracketMatchList({
   rounds,
   getMatchLabel,
   getTeamName,
   isMatchReady,
   onMatchClick,
+  champion,
+  bronzeWinner,
 }) {
-  // Build bracket columns (same as before)
+  const scrollRef = useRef(null)
+  const columnRefs = useRef([])
+  const [showLeftFade, setShowLeftFade] = useState(false)
+  const [showRightFade, setShowRightFade] = useState(false)
+
+  // Build bracket columns
   const buildBracketColumns = () => {
     const columns = []
 
     rounds.forEach((round, roundIndex) => {
       const matches = round.matches.filter(m => !m.isBye)
-      
+
+      // Calculate vertical position for each match
       const totalSlots = Math.pow(2, rounds.length - roundIndex)
-      
+
       const slots = []
       for (let i = 0; i < totalSlots; i++) {
         slots.push(null)
       }
-      
+
       matches.forEach((match, matchIndex) => {
         const slotIndex = matchIndex * 2
         if (slotIndex < slots.length) {
           slots[slotIndex] = { match, matchIndex }
         }
       })
-      
+
       columns.push({
         roundName: round.round_name || `Round ${round.round_number}`,
         isBronze: round.isBronze || false,
@@ -45,6 +55,55 @@ export default function BracketMatchList({
 
   const columns = buildBracketColumns()
 
+  // Auto-scroll to whichever round the user actually needs to look at:
+  // the first round with a match ready to be scored, or failing that,
+  // the first round that isn't finished yet. Falls back to round 1.
+  useEffect(() => {
+    if (!scrollRef.current || columns.length === 0) return
+
+    let targetIndex = columns.findIndex(col =>
+      col.slots.some(slot => slot && isMatchReady(slot.match))
+    )
+
+    if (targetIndex === -1) {
+      targetIndex = columns.findIndex(col =>
+        col.slots.some(slot => slot && !slot.match.completed)
+      )
+    }
+
+    if (targetIndex === -1) targetIndex = 0
+
+    const targetEl = columnRefs.current[targetIndex]
+    if (targetEl) {
+      targetEl.scrollIntoView({
+        behavior: 'auto',
+        inline: 'start',
+        block: 'nearest',
+      })
+    }
+    // Only run this on mount / when the round structure changes, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [rounds.length])
+
+  // Track scroll position to show/hide the edge fade hints.
+  useEffect(() => {
+    const el = scrollRef.current
+    if (!el) return
+
+    const updateFades = () => {
+      setShowLeftFade(el.scrollLeft > 4)
+      setShowRightFade(el.scrollLeft + el.clientWidth < el.scrollWidth - 4)
+    }
+
+    updateFades()
+    el.addEventListener('scroll', updateFades, { passive: true })
+    window.addEventListener('resize', updateFades)
+    return () => {
+      el.removeEventListener('scroll', updateFades)
+      window.removeEventListener('resize', updateFades)
+    }
+  }, [columns.length])
+
   if (columns.length === 0) {
     return (
       <div style={{
@@ -60,198 +119,254 @@ export default function BracketMatchList({
   }
 
   return (
-    <div style={{
-      display: 'flex',
-      gap: 'clamp(12px, 2vw, 24px)',
-      justifyContent: 'center',
-      padding: '12px 8px',
-      minWidth: 'max-content',
-      background: '#f8faf8',
-      borderRadius: '8px',
-      overflowX: 'auto',
-      WebkitOverflowScrolling: 'touch',
-      scrollSnapType: 'x mandatory',
-    }}>
-      {columns.map((column, colIndex) => {
-        const isFinal = column.roundName === 'Final' || column.roundName === '🥉 Bronze'
-        const matchHeight = isFinal ? 70 : 50
-        const spacing = isFinal ? 0 : 12
-        
-        return (
-          <div
-            key={colIndex}
-            style={{
-              display: 'flex',
-              flexDirection: 'column',
-              alignItems: 'center',
-              minWidth: isFinal ? '100px' : '110px',
-              maxWidth: isFinal ? '140px' : '150px',
-              position: 'relative',
-              scrollSnapAlign: 'start',
-            }}
-          >
-            {/* Round Label */}
-            <div style={{
-              fontSize: 'clamp(9px, 1.2vw, 11px)',
-              fontWeight: '600',
-              color: '#6a7a6a',
-              textTransform: 'uppercase',
-              letterSpacing: '0.05em',
-              marginBottom: '10px',
-              padding: '3px 10px',
-              background: '#ffffff',
-              borderRadius: '10px',
-              border: '1px solid #d0ddd0',
-              whiteSpace: 'nowrap',
-            }}>
-              {getRoundName(rounds[colIndex])}
-            </div>
+    <div style={{ position: 'relative' }}>
+      <style>{`
+        .bracket-scroll {
+          --col-width: 140px;
+          --col-width-final: 120px;
+          --match-height: 60px;
+          --match-height-final: 80px;
+          --name-max-width: 70px;
+          --font-size: 11px;
+          --font-size-final: 13px;
+          --gap: 24px;
+        }
+        @media (max-width: 520px) {
+          .bracket-scroll {
+            --col-width: 112px;
+            --col-width-final: 104px;
+            --match-height: 52px;
+            --match-height-final: 68px;
+            --name-max-width: 56px;
+            --font-size: 10.5px;
+            --font-size-final: 12px;
+            --gap: 14px;
+          }
+        }
+        .bracket-scroll {
+          scroll-snap-type: x proximity;
+          -webkit-overflow-scrolling: touch;
+        }
+        .bracket-column {
+          scroll-snap-align: start;
+        }
+        .bracket-match-card:active {
+          transform: scale(0.98);
+        }
+      `}</style>
 
-            {/* Matches in column */}
-            {column.slots.map((slot, idx) => {
-              if (!slot) {
+      <div
+        ref={scrollRef}
+        className="bracket-scroll"
+        style={{
+          display: 'flex',
+          gap: 'var(--gap)',
+          justifyContent: rounds.length <= 2 ? 'center' : 'flex-start',
+          padding: '16px 8px',
+          minWidth: 'max-content',
+          background: '#f8faf8',
+          borderRadius: '8px',
+          overflowX: 'auto',
+        }}
+      >
+        {columns.map((column, colIndex) => {
+          const isFinal = column.roundName === 'Final' || column.roundName === '🥉 Bronze'
+
+          return (
+            <div
+              key={colIndex}
+              ref={el => (columnRefs.current[colIndex] = el)}
+              className="bracket-column"
+              style={{
+                display: 'flex',
+                flexDirection: 'column',
+                alignItems: 'center',
+                minWidth: isFinal ? 'var(--col-width-final)' : 'var(--col-width)',
+                position: 'relative',
+              }}
+            >
+              {/* Round Label */}
+              <div style={{
+                fontSize: '11px',
+                fontWeight: '600',
+                color: '#6a7a6a',
+                textTransform: 'uppercase',
+                letterSpacing: '0.05em',
+                marginBottom: '12px',
+                padding: '4px 12px',
+                background: '#ffffff',
+                borderRadius: '12px',
+                border: '1px solid #d0ddd0',
+                whiteSpace: 'nowrap',
+                position: 'sticky',
+                top: 0,
+              }}>
+                {getRoundName(rounds[colIndex])}
+              </div>
+
+              {/* Matches in column */}
+              {column.slots.map((slot, idx) => {
+                const spacing = isFinal ? 0 : 20
+
+                if (!slot) {
+                  return (
+                    <div
+                      key={idx}
+                      style={{
+                        height: isFinal ? 'var(--match-height-final)' : 'var(--match-height)',
+                        marginBottom: spacing,
+                        visibility: 'hidden',
+                      }}
+                    />
+                  )
+                }
+
+                const { match, matchIndex } = slot
+                const isCompleted = match.completed
+                const isReady = isMatchReady(match)
+                const team1Label = getTeamName(match, 1)
+                const team2Label = getTeamName(match, 2)
+
+                const winnerLabel = isCompleted && match.winner
+                  ? getMatchLabel([match.winner])
+                  : null
+
                 return (
                   <div
                     key={idx}
-                    style={{
-                      height: matchHeight,
-                      marginBottom: spacing,
-                      visibility: 'hidden',
+                    className="bracket-match-card"
+                    onClick={() => {
+                      if (isReady) {
+                        onMatchClick(column.roundIndex, matchIndex)
+                      }
                     }}
-                  />
+                    style={{
+                      height: isFinal ? 'var(--match-height-final)' : 'var(--match-height)',
+                      width: '100%',
+                      minWidth: isFinal ? 'var(--col-width-final)' : 'var(--col-width)',
+                      marginBottom: spacing,
+                      padding: isFinal ? '12px 16px' : '8px 12px',
+                      borderRadius: '6px',
+                      border: isCompleted
+                        ? '2px solid #4ade80'
+                        : isReady
+                          ? '2px solid #fbbf24'
+                          : '2px solid #d0ddd0',
+                      background: isCompleted
+                        ? 'rgba(74, 222, 128, 0.08)'
+                        : isReady
+                          ? '#ffffff'
+                          : '#f5f5f5',
+                      cursor: isReady ? 'pointer' : 'default',
+                      opacity: isCompleted ? 0.85 : (isReady ? 1 : 0.5),
+                      transition: 'transform 0.1s ease, background 0.2s ease, box-shadow 0.2s ease',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      justifyContent: 'center',
+                      position: 'relative',
+                      touchAction: 'manipulation',
+                    }}
+                  >
+                    {/* Team 1 */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
+                      fontWeight: isCompleted && winnerLabel === team1Label ? '700' : '400',
+                      color: isCompleted && winnerLabel === team1Label ? '#4ade80' : '#1a2a1a',
+                    }}>
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: 'var(--name-max-width)',
+                      }}>
+                        {team1Label}
+                      </span>
+                      {isCompleted && (
+                        <span style={{
+                          fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
+                          fontWeight: '600',
+                          color: '#d4a843',
+                          marginLeft: '4px',
+                        }}>
+                          {match.score1}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Team 2 */}
+                    <div style={{
+                      display: 'flex',
+                      justifyContent: 'space-between',
+                      alignItems: 'center',
+                      fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
+                      fontWeight: isCompleted && winnerLabel === team2Label ? '700' : '400',
+                      color: isCompleted && winnerLabel === team2Label ? '#4ade80' : '#1a2a1a',
+                    }}>
+                      <span style={{
+                        overflow: 'hidden',
+                        textOverflow: 'ellipsis',
+                        whiteSpace: 'nowrap',
+                        maxWidth: 'var(--name-max-width)',
+                      }}>
+                        {team2Label}
+                      </span>
+                      {isCompleted && (
+                        <span style={{
+                          fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
+                          fontWeight: '600',
+                          color: '#d4a843',
+                          marginLeft: '4px',
+                        }}>
+                          {match.score2}
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Status indicator */}
+                    <div style={{
+                      position: 'absolute',
+                      top: '2px',
+                      right: '4px',
+                      fontSize: '10px',
+                    }}>
+                      {isCompleted ? '✅' : isReady ? '⏳' : '⏸️'}
+                    </div>
+                  </div>
                 )
-              }
+              })}
+            </div>
+          )
+        })}
+      </div>
 
-              const { match, matchIndex } = slot
-              const isCompleted = match.completed
-              const isReady = isMatchReady(match)
-              const team1Label = getTeamName(match, 1)
-              const team2Label = getTeamName(match, 2)
-
-              const winnerLabel = isCompleted && match.winner 
-                ? getMatchLabel([match.winner])
-                : null
-
-              return (
-                <div
-                  key={idx}
-                  onClick={() => {
-                    if (isReady) {
-                      onMatchClick(column.roundIndex, matchIndex)
-                    }
-                  }}
-                  style={{
-                    height: matchHeight,
-                    width: '100%',
-                    minWidth: isFinal ? '90px' : '100px',
-                    maxWidth: isFinal ? '130px' : '140px',
-                    marginBottom: spacing,
-                    padding: isFinal ? '8px 12px' : '6px 10px',
-                    borderRadius: '4px',
-                    border: isCompleted 
-                      ? '2px solid #4ade80' 
-                      : isReady 
-                        ? '2px solid #fbbf24' 
-                        : '2px solid #d0ddd0',
-                    background: isCompleted 
-                      ? 'rgba(74, 222, 128, 0.08)' 
-                      : isReady 
-                        ? '#ffffff' 
-                        : '#f5f5f5',
-                    cursor: isReady ? 'pointer' : 'default',
-                    opacity: isCompleted ? 0.85 : (isReady ? 1 : 0.5),
-                    transition: 'all 0.2s ease',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    justifyContent: 'center',
-                    position: 'relative',
-                  }}
-                  onMouseEnter={(e) => {
-                    if (isReady) {
-                      e.currentTarget.style.background = '#f0f5f0'
-                      e.currentTarget.style.boxShadow = '0 2px 8px rgba(0,0,0,0.08)'
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    if (isReady) {
-                      e.currentTarget.style.background = '#ffffff'
-                      e.currentTarget.style.boxShadow = 'none'
-                    }
-                  }}
-                >
-                  {/* Team 1 */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)',
-                    fontWeight: isCompleted && winnerLabel === team1Label ? '700' : '400',
-                    color: isCompleted && winnerLabel === team1Label ? '#4ade80' : '#1a2a1a',
-                  }}>
-                    <span style={{ 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis', 
-                      whiteSpace: 'nowrap',
-                      maxWidth: '55px',
-                    }}>
-                      {team1Label}
-                    </span>
-                    {isCompleted && (
-                      <span style={{ 
-                        fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)', 
-                        fontWeight: '600',
-                        color: '#d4a843',
-                        marginLeft: '4px',
-                      }}>
-                        {match.score1}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Team 2 */}
-                  <div style={{
-                    display: 'flex',
-                    justifyContent: 'space-between',
-                    alignItems: 'center',
-                    fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)',
-                    fontWeight: isCompleted && winnerLabel === team2Label ? '700' : '400',
-                    color: isCompleted && winnerLabel === team2Label ? '#4ade80' : '#1a2a1a',
-                  }}>
-                    <span style={{ 
-                      overflow: 'hidden', 
-                      textOverflow: 'ellipsis', 
-                      whiteSpace: 'nowrap',
-                      maxWidth: '55px',
-                    }}>
-                      {team2Label}
-                    </span>
-                    {isCompleted && (
-                      <span style={{ 
-                        fontSize: isFinal ? 'clamp(11px, 1.4vw, 13px)' : 'clamp(9px, 1vw, 11px)', 
-                        fontWeight: '600',
-                        color: '#d4a843',
-                        marginLeft: '4px',
-                      }}>
-                        {match.score2}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Status indicator */}
-                  <div style={{
-                    position: 'absolute',
-                    top: '2px',
-                    right: '4px',
-                    fontSize: '8px',
-                  }}>
-                    {isCompleted ? '✅' : isReady ? '⏳' : '⏸️'}
-                  </div>
-                </div>
-              )
-            })}
-          </div>
-        )
-      })}
+      {/* Edge fade hints — let people know there's more to scroll to */}
+      {showLeftFade && (
+        <div style={{
+          position: 'absolute',
+          left: 0,
+          top: 0,
+          bottom: 0,
+          width: '24px',
+          background: 'linear-gradient(to right, #f8faf8, transparent)',
+          pointerEvents: 'none',
+          borderRadius: '8px 0 0 8px',
+        }} />
+      )}
+      {showRightFade && (
+        <div style={{
+          position: 'absolute',
+          right: 0,
+          top: 0,
+          bottom: 0,
+          width: '24px',
+          background: 'linear-gradient(to left, #f8faf8, transparent)',
+          pointerEvents: 'none',
+          borderRadius: '0 8px 8px 0',
+        }} />
+      )}
     </div>
   )
 }
