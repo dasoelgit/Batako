@@ -1,7 +1,7 @@
 // src/components/Tournament/TournamentSetup/TeamBuilder.jsx
 import { useState } from 'react'
 
-export default function TeamBuilder({ players, selectedPlayers, fixedTeams, setFixedTeams, setError }) {
+export default function TeamBuilder({ players, selectedPlayers, fixedTeams, setFixedTeams, setError, togglePlayer }) {
   const [newPlayerName, setNewPlayerName] = useState('')
 
   const autoCreateTeams = () => {
@@ -45,10 +45,6 @@ export default function TeamBuilder({ players, selectedPlayers, fixedTeams, setF
     fontWeight: '700',
     marginBottom: '6px',
     display: 'block',
-  }
-
-  const togglePlayer = (player) => {
-    // This is passed from parent
   }
 
   return (
