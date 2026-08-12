@@ -22,7 +22,6 @@ export default function BracketMatchList({
     rounds.forEach((round, roundIndex) => {
       const matches = round.matches.filter(m => !m.isBye)
 
-      // Calculate vertical position for each match
       const totalSlots = Math.pow(2, rounds.length - roundIndex)
 
       const slots = []
@@ -55,9 +54,7 @@ export default function BracketMatchList({
 
   const columns = buildBracketColumns()
 
-  // Auto-scroll to whichever round the user actually needs to look at:
-  // the first round with a match ready to be scored, or failing that,
-  // the first round that isn't finished yet. Falls back to round 1.
+  // Auto-scroll to the first ready match
   useEffect(() => {
     if (!scrollRef.current || columns.length === 0) return
 
@@ -81,11 +78,10 @@ export default function BracketMatchList({
         block: 'nearest',
       })
     }
-    // Only run this on mount / when the round structure changes, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [rounds.length])
 
-  // Track scroll position to show/hide the edge fade hints.
+  // Track scroll position for fade hints
   useEffect(() => {
     const el = scrollRef.current
     if (!el) return
@@ -103,6 +99,26 @@ export default function BracketMatchList({
       window.removeEventListener('resize', updateFades)
     }
   }, [columns.length])
+
+  // Helper to get winner label safely
+  const getWinnerLabel = (match) => {
+    if (!match || !match.completed || !match.winner) return null
+    
+    const winner = match.winner
+    
+    // Doubles: winner has a players array
+    if (winner.players) {
+      return winner.name || winner.players.map(p => p.name).join(' / ')
+    }
+    
+    // Array of players
+    if (Array.isArray(winner)) {
+      return getMatchLabel(winner)
+    }
+    
+    // Singles: winner is a player object
+    return winner.name || 'Unknown'
+  }
 
   if (columns.length === 0) {
     return (
@@ -227,9 +243,9 @@ export default function BracketMatchList({
                 const team1Label = getTeamName(match, 1)
                 const team2Label = getTeamName(match, 2)
 
-                const winnerLabel = isCompleted && match.winner
-                  ? getMatchLabel([match.winner])
-                  : null
+                const winnerLabel = getWinnerLabel(match)
+                const isWinner1 = isCompleted && winnerLabel && team1Label === winnerLabel
+                const isWinner2 = isCompleted && winnerLabel && team2Label === winnerLabel
 
                 return (
                   <div
@@ -273,8 +289,8 @@ export default function BracketMatchList({
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
-                      fontWeight: isCompleted && winnerLabel === team1Label ? '700' : '400',
-                      color: isCompleted && winnerLabel === team1Label ? '#4ade80' : '#1a2a1a',
+                      fontWeight: isWinner1 ? '700' : '400',
+                      color: isWinner1 ? '#4ade80' : '#1a2a1a',
                     }}>
                       <span style={{
                         overflow: 'hidden',
@@ -302,8 +318,8 @@ export default function BracketMatchList({
                       justifyContent: 'space-between',
                       alignItems: 'center',
                       fontSize: isFinal ? 'var(--font-size-final)' : 'var(--font-size)',
-                      fontWeight: isCompleted && winnerLabel === team2Label ? '700' : '400',
-                      color: isCompleted && winnerLabel === team2Label ? '#4ade80' : '#1a2a1a',
+                      fontWeight: isWinner2 ? '700' : '400',
+                      color: isWinner2 ? '#4ade80' : '#1a2a1a',
                     }}>
                       <span style={{
                         overflow: 'hidden',
@@ -342,7 +358,7 @@ export default function BracketMatchList({
         })}
       </div>
 
-      {/* Edge fade hints — let people know there's more to scroll to */}
+      {/* Edge fade hints */}
       {showLeftFade && (
         <div style={{
           position: 'absolute',
