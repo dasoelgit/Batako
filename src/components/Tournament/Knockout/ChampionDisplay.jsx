@@ -1,4 +1,4 @@
-// src/components/Tournament/KnockoutDashboard/ChampionDisplay.jsx
+// src/components/Tournament/Knockout/ChampionDisplay.jsx
 export default function ChampionDisplay({ champion, bronzeWinner, getMatchLabel }) {
   if (!champion) return null
 
