@@ -3,6 +3,9 @@ import { useState, useEffect } from 'react'
 import { supabase } from '../../utils/supabase'
 import { teamLabel } from '../../utils/helpers'
 import { updateKnockoutWinner } from '../../utils/tournament'
+import BracketMatchList from './Knockout/BracketMatchList'
+import ChampionDisplay from './Knockout/ChampionDisplay'
+import KnockoutScoreModal from './Knockout/KnockoutScoreModal'
 
 export default function KnockoutDashboard({ tournament, onTournamentComplete, onBack }) {
   const [tournamentData, setTournamentData] = useState(tournament)
@@ -23,12 +26,10 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
   const isDoubles = tournamentData.type === 'knockout' && tournamentData.match_type === 'doubles'
 
   useEffect(() => {
-    // Check if tournament is complete
     const allMatchesCompleted = rounds.every(round =>
       round.matches.every(m => m.completed || m.isBye)
     )
     if (allMatchesCompleted && rounds.length > 0) {
-      // Find champion (winner of final round)
       const finalRound = rounds[rounds.length - 1]
       if (finalRound && !finalRound.isBronze) {
         const finalMatch = finalRound.matches[0]
@@ -36,7 +37,6 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           setChampion(finalMatch.winner)
         }
       }
-      // Find bronze winner if bronze match exists
       const bronzeRound = rounds.find(r => r.isBronze)
       if (bronzeRound && bronzeRound.matches[0]?.completed) {
         const bronzeMatch = bronzeRound.matches[0]
@@ -66,18 +66,22 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
     }
   }
 
+  const isMatchReady = (match) => {
+    if (!match) return false
+    if (match.completed || match.isBye) return false
+    if (!match.team1 || !match.team2) return false
+    if (match.team1.length === 0 || match.team2.length === 0) return false
+    if (match.team1[0]?.isPlaceholder || match.team2[0]?.isPlaceholder) return false
+    return true
+  }
+
   const handleMatchClick = (roundIndex, matchIndex) => {
     const round = rounds[roundIndex]
     const match = round.matches[matchIndex]
 
-    // Skip if match is already completed or is a bye
     if (match.completed || match.isBye) return
-
-    // Skip if match doesn't have two teams (placeholder for future rounds)
     if (!match.team1 || !match.team2) return
     if (match.team1.length === 0 || match.team2.length === 0) return
-
-    // Check if any team is a placeholder
     if (match.team1[0]?.isPlaceholder || match.team2[0]?.isPlaceholder) return
 
     setSelectedRoundIndex(roundIndex)
@@ -106,12 +110,9 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       const round = updatedRounds[selectedRoundIndex]
       const match = round.matches[selectedMatchIndex]
 
-            // Determine winner (and loser, in case a bronze match needs them)
       let winner = null
-      let loser = null
       let draw = false
       if (s1 > s2) {
-        // Team 1 wins
         if (isDoubles && match.team1.length > 0) {
           winner = {
             id: match.team1.map(p => p.id).join('-'),
@@ -121,17 +122,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         } else {
           winner = match.team1[0]
         }
-        if (isDoubles && match.team2.length > 0) {
-          loser = {
-            id: match.team2.map(p => p.id).join('-'),
-            name: match.team2.map(p => p.name).join(' / '),
-            players: match.team2,
-          }
-        } else {
-          loser = match.team2[0]
-        }
       } else if (s2 > s1) {
-        // Team 2 wins
         if (isDoubles && match.team2.length > 0) {
           winner = {
             id: match.team2.map(p => p.id).join('-'),
@@ -141,31 +132,21 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         } else {
           winner = match.team2[0]
         }
-        if (isDoubles && match.team1.length > 0) {
-          loser = {
-            id: match.team1.map(p => p.id).join('-'),
-            name: match.team1.map(p => p.name).join(' / '),
-            players: match.team1,
-          }
-        } else {
-          loser = match.team1[0]
-        }
       } else {
         draw = true
       }
+
       if (draw) {
         setError('Knockout matches cannot end in a draw. Please enter a valid score.')
         setBusy(false)
         return
       }
 
-      // Update match
       match.completed = true
       match.score1 = s1
       match.score2 = s2
       match.winner = winner
 
-      // Save to tennis_matches
       const team1Players = match.team1 || []
       const team2Players = match.team2 || []
 
@@ -203,7 +184,6 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
       if (matchError) throw matchError
 
-      // Link to tournament_matches
       const { error: linkError } = await supabase
         .from('tennis_tournament_matches')
         .insert({
@@ -214,11 +194,9 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
       if (linkError) throw linkError
 
-      // Update next round with winner (for knockout progression)
       const nextRoundIndex = selectedRoundIndex + 1
       if (nextRoundIndex < updatedRounds.length && !round.isBronze) {
         const nextRound = updatedRounds[nextRoundIndex]
-        // Find the placeholder in next round that this winner should fill
         for (const nextMatch of nextRound.matches) {
           if (nextMatch.team1 && nextMatch.team1[0]?.isPlaceholder) {
             const placeholderId = nextMatch.team1[0].id
@@ -246,31 +224,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           }
         }
       }
-            
-      // Update bronze match with the loser, if this was a semifinal
-      const bronzeRound = updatedRounds.find(r => r.isBronze)
-      if (bronzeRound && loser && round.round_name === 'Semifinal') {
-        const bronzeMatch = bronzeRound.matches[0]
-        if (bronzeMatch) {
-          if (bronzeMatch.team1?.[0]?.isPlaceholder && bronzeMatch.team1[0].id === match.id) {
-            if (isDoubles && loser.players) {
-              bronzeMatch.team1 = loser.players
-              bronzeMatch.team1Name = loser.name
-            } else {
-              bronzeMatch.team1 = [loser]
-            }
-          } else if (bronzeMatch.team2?.[0]?.isPlaceholder && bronzeMatch.team2[0].id === match.id) {
-            if (isDoubles && loser.players) {
-              bronzeMatch.team2 = loser.players
-              bronzeMatch.team2Name = loser.name
-            } else {
-              bronzeMatch.team2 = [loser]
-            }
-          }
-        }
-      }
-      
-      // Update tournament in database
+
       const { error: updateError } = await supabase
         .from('tennis_tournaments')
         .update({ rounds: updatedRounds })
@@ -287,10 +241,8 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       setScore2('')
       setBusy(false)
 
-      // Refresh leaderboard
       window.dispatchEvent(new Event('refreshData'))
 
-      // Check if tournament complete
       const allMatchesCompleted = updatedRounds.every(round =>
         round.matches.every(m => m.completed || m.isBye)
       )
@@ -311,16 +263,6 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
   const getRoundName = (round) => {
     if (round.isBronze) return '🥉 Bronze Match'
     return round.round_name || `Round ${round.round_number}`
-  }
-
-  const isMatchReady = (match) => {
-    if (!match) return false
-    if (match.completed || match.isBye) return false
-    if (!match.team1 || !match.team2) return false
-    if (match.team1.length === 0 || match.team2.length === 0) return false
-    // Check if any team has placeholder
-    if (match.team1[0]?.isPlaceholder || match.team2[0]?.isPlaceholder) return false
-    return true
   }
 
   return (
@@ -364,29 +306,12 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         {champion && ' · ✅ Complete'}
       </div>
 
-      {/* Champion Display */}
-      {champion && (
-        <div style={{
-          textAlign: 'center',
-          padding: '12px',
-          marginBottom: '16px',
-          background: 'rgba(212, 233, 75, 0.15)',
-          borderRadius: '8px',
-          border: '2px solid #d4e94b',
-        }}>
-          <div style={{ fontSize: '14px', color: '#6a7a6a' }}>🏆 Champion</div>
-          <div style={{ fontSize: '24px', fontWeight: '800', color: '#d4a843' }}>
-            {getMatchLabel([champion])}
-          </div>
-          {bronzeWinner && (
-            <div style={{ marginTop: '8px', fontSize: '14px', color: '#6a7a6a' }}>
-              🥉 Bronze: {getMatchLabel([bronzeWinner])}
-            </div>
-          )}
-        </div>
-      )}
+      <ChampionDisplay
+        champion={champion}
+        bronzeWinner={bronzeWinner}
+        getMatchLabel={getMatchLabel}
+      />
 
-      {/* Bracket */}
       {rounds.map((round, roundIndex) => (
         <div key={roundIndex} style={{ marginBottom: '16px' }}>
           <div style={{
@@ -398,80 +323,13 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
             {getRoundName(round)}
           </div>
 
-          {round.matches.map((match, matchIndex) => {
-            const isReady = isMatchReady(match)
-            const team1Label = getTeamName(match, 1)
-            const team2Label = getTeamName(match, 2)
-            const isCompleted = match.completed
-            const isBye = match.isBye
-
-            if (isBye) return null
-
-            return (
-              <div
-                key={matchIndex}
-                onClick={() => handleMatchClick(roundIndex, matchIndex)}
-                style={{
-                  border: '1px solid #d0ddd0',
-                  borderRadius: '8px',
-                  padding: '12px 16px',
-                  marginBottom: '8px',
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  cursor: isReady ? 'pointer' : 'default',
-                  transition: 'all 0.2s ease',
-                  background: isCompleted ? 'rgba(74, 222, 128, 0.08)' : (isReady ? '#ffffff' : '#f5f5f5'),
-                  opacity: isCompleted ? 0.85 : (isReady ? 1 : 0.6),
-                }}
-                onMouseEnter={(e) => {
-                  if (isReady) {
-                    e.currentTarget.style.background = '#f8faf8'
-                  }
-                }}
-                onMouseLeave={(e) => {
-                  if (isReady) {
-                    e.currentTarget.style.background = '#ffffff'
-                  }
-                }}
-              >
-                <div>
-                  <div style={{ fontWeight: '600', fontSize: '14px' }}>
-                    {team1Label} vs {team2Label}
-                  </div>
-                  {isCompleted && (
-                    <div style={{ fontSize: '13px', color: '#6a7a6a' }}>
-                      {match.score1} - {match.score2}
-                      {match.winner && (
-                        <span style={{ marginLeft: '8px', color: '#4ade80', fontWeight: '600' }}>
-                          ✅ {getMatchLabel([match.winner])} wins
-                        </span>
-                      )}
-                    </div>
-                  )}
-                  {!isCompleted && !isReady && (
-                    <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
-                      Waiting for previous round
-                    </div>
-                  )}
-                  {!isCompleted && isReady && (
-                    <div style={{ fontSize: '12px', color: '#6a7a6a' }}>
-                      Tap to enter score →
-                    </div>
-                  )}
-                </div>
-                <div>
-                  {isCompleted ? (
-                    <span style={{ fontSize: '18px' }}>✅</span>
-                  ) : isReady ? (
-                    <span style={{ fontSize: '18px', color: '#fbbf24' }}>⏳</span>
-                  ) : (
-                    <span style={{ fontSize: '18px', color: '#d0ddd0' }}>⏸️</span>
-                  )}
-                </div>
-              </div>
-            )
-          })}
+          <BracketMatchList
+            matches={round.matches}
+            getMatchLabel={getMatchLabel}
+            getTeamName={getTeamName}
+            onMatchClick={(matchIndex) => handleMatchClick(roundIndex, matchIndex)}
+            isReady={isMatchReady}
+          />
         </div>
       ))}
 
@@ -489,158 +347,28 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         </div>
       )}
 
-      {/* Score Modal */}
-      {showScoreModal && selectedMatch && (
-        <div
-          style={{
-            position: 'fixed',
-            top: 0,
-            left: 0,
-            right: 0,
-            bottom: 0,
-            background: 'rgba(0,0,0,0.5)',
-            backdropFilter: 'blur(4px)',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            zIndex: 1000,
-            padding: '16px',
-          }}
-          onClick={() => {
-            setShowScoreModal(false)
-            setSelectedMatch(null)
-            setSelectedRoundIndex(null)
-            setSelectedMatchIndex(null)
-            setScore1('')
-            setScore2('')
-            setError('')
-          }}
-        >
-          <div
-            style={{
-              background: '#ffffff',
-              borderRadius: '12px',
-              padding: '24px',
-              maxWidth: '400px',
-              width: '100%',
-            }}
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h3 style={{ margin: '0 0 16px 0', color: '#1a2a1a' }}>
-              {selectedMatch.round ? `Round ${selectedMatch.round}` : 'Match'} Score
-            </h3>
-
-            <div style={{
-              fontSize: '14px',
-              fontWeight: '600',
-              color: '#1a2a1a',
-              textAlign: 'center',
-              marginBottom: '16px',
-            }}>
-              {getTeamName(selectedMatch, 1)} vs {getTeamName(selectedMatch, 2)}
-            </div>
-
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-between',
-              alignItems: 'center',
-              gap: '12px',
-            }}>
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 1</div>
-                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getTeamName(selectedMatch, 1)}</div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={score1}
-                  onChange={(e) => setScore1(e.target.value.replace(/[^0-9]/g, ''))}
-                  style={{
-                    width: '60px',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid #d0ddd0',
-                    background: '#ffffff',
-                    color: '#1a2a1a',
-                    fontSize: '20px',
-                    textAlign: 'center',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-
-              <div style={{ fontSize: '16px', fontWeight: '700', color: '#6a7a6a' }}>vs</div>
-
-              <div style={{ flex: 1, textAlign: 'center' }}>
-                <div style={{ fontSize: '12px', color: '#6a7a6a' }}>Team 2</div>
-                <div style={{ fontWeight: '600', marginBottom: '8px' }}>{getTeamName(selectedMatch, 2)}</div>
-                <input
-                  type="text"
-                  inputMode="numeric"
-                  placeholder="0"
-                  value={score2}
-                  onChange={(e) => setScore2(e.target.value.replace(/[^0-9]/g, ''))}
-                  style={{
-                    width: '60px',
-                    padding: '10px',
-                    borderRadius: '8px',
-                    border: '1px solid #d0ddd0',
-                    background: '#ffffff',
-                    color: '#1a2a1a',
-                    fontSize: '20px',
-                    textAlign: 'center',
-                    outline: 'none',
-                  }}
-                />
-              </div>
-            </div>
-
-            {error && (
-              <div style={{
-                background: 'rgba(214,67,47,0.12)',
-                color: '#c0392b',
-                padding: '8px',
-                borderRadius: '6px',
-                fontSize: '13px',
-                marginTop: '12px',
-                textAlign: 'center',
-              }}>
-                {error}
-              </div>
-            )}
-
-            <div style={{
-              display: 'flex',
-              gap: '8px',
-              marginTop: '16px',
-            }}>
-              <button
-                className="btn-secondary"
-                style={{ flex: 1 }}
-                onClick={() => {
-                  setShowScoreModal(false)
-                  setSelectedMatch(null)
-                  setSelectedRoundIndex(null)
-                  setSelectedMatchIndex(null)
-                  setScore1('')
-                  setScore2('')
-                  setError('')
-                }}
-              >
-                Cancel
-              </button>
-              <button
-                className="btn-primary"
-                style={{ flex: 1 }}
-                onClick={handleSaveScore}
-                disabled={busy}
-              >
-                {busy ? 'Saving...' : 'Save Score'}
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+      <KnockoutScoreModal
+        isOpen={showScoreModal}
+        onClose={() => {
+          setShowScoreModal(false)
+          setSelectedMatch(null)
+          setSelectedRoundIndex(null)
+          setSelectedMatchIndex(null)
+          setScore1('')
+          setScore2('')
+          setError('')
+        }}
+        match={selectedMatch}
+        getTeamName={getTeamName}
+        roundLabel={selectedMatch?.round ? `Round ${selectedMatch.round}` : 'Match'}
+        score1={score1}
+        setScore1={setScore1}
+        score2={score2}
+        setScore2={setScore2}
+        error={error}
+        busy={busy}
+        onSave={handleSaveScore}
+      />
     </div>
   )
 }
