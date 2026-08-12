@@ -126,6 +126,16 @@ export default function BracketMatchList({
     return team.some(p => p?.isPlaceholder)
   }
 
+  // Helper to get team display name with fallbacks
+  const getTeamDisplayName = (match, side) => {
+    // First try team1Name/team2Name from the match
+    if (side === 1 && match.team1Name) return match.team1Name
+    if (side === 2 && match.team2Name) return match.team2Name
+    
+    // Then try getTeamName
+    return getTeamName(match, side)
+  }
+
   if (columns.length === 0) {
     return (
       <div style={{
@@ -247,20 +257,9 @@ export default function BracketMatchList({
                 const isCompleted = match.completed
                 const isReady = isMatchReady(match)
                 
-                // Get team labels, checking for placeholders
-                let team1Label = getTeamName(match, 1)
-                let team2Label = getTeamName(match, 2)
-                
-                // If team is placeholder and match is completed, use winner name
-                if (isCompleted && match.winner) {
-                  const winnerLabel = getWinnerLabel(match)
-                  if (isPlaceholderTeam(match.team1) || match.team1Name === 'TBD') {
-                    team1Label = winnerLabel || 'TBD'
-                  }
-                  if (isPlaceholderTeam(match.team2) || match.team2Name === 'TBD') {
-                    team2Label = winnerLabel || 'TBD'
-                  }
-                }
+                // Get team labels with proper fallbacks
+                const team1Label = getTeamDisplayName(match, 1)
+                const team2Label = getTeamDisplayName(match, 2)
 
                 const winnerLabel = getWinnerLabel(match)
                 const isWinner1 = isCompleted && winnerLabel && team1Label === winnerLabel
@@ -360,7 +359,7 @@ export default function BracketMatchList({
                       )}
                     </div>
 
-                    {/* Status indicator - removed ✅, kept only ⏳ and ⏸️ */}
+                    {/* Status indicator - only show ⏳ or ⏸️, no ✅ */}
                     <div style={{
                       position: 'absolute',
                       top: '2px',
