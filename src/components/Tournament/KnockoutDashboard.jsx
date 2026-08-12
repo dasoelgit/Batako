@@ -246,11 +246,13 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
 
       if (linkError) throw linkError
 
+      // --- UPDATE NEXT ROUND WITH WINNER ---
       const nextRoundIndex = selectedRoundIndex + 1
       if (nextRoundIndex < updatedRounds.length && !round.isBronze) {
         const nextRound = updatedRounds[nextRoundIndex]
         for (const nextMatch of nextRound.matches) {
-          if (nextMatch.team1 && nextMatch.team1[0]?.isPlaceholder) {
+          // Check team1 placeholder
+          if (nextMatch.team1 && nextMatch.team1.length > 0 && nextMatch.team1[0]?.isPlaceholder) {
             const placeholderId = nextMatch.team1[0].id
             if (placeholderId === match.id || placeholderId === `match_${selectedRoundIndex + 1}_${selectedMatchIndex}`) {
               if (isDoubles && winner.players) {
@@ -258,11 +260,13 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
                 nextMatch.team1Name = winner.name
               } else {
                 nextMatch.team1 = [winner]
+                nextMatch.team1Name = winner.name || 'TBD'
               }
               break
             }
           }
-          if (nextMatch.team2 && nextMatch.team2[0]?.isPlaceholder) {
+          // Check team2 placeholder
+          if (nextMatch.team2 && nextMatch.team2.length > 0 && nextMatch.team2[0]?.isPlaceholder) {
             const placeholderId = nextMatch.team2[0].id
             if (placeholderId === match.id || placeholderId === `match_${selectedRoundIndex + 1}_${selectedMatchIndex}`) {
               if (isDoubles && winner.players) {
@@ -270,6 +274,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
                 nextMatch.team2Name = winner.name
               } else {
                 nextMatch.team2 = [winner]
+                nextMatch.team2Name = winner.name || 'TBD'
               }
               break
             }
