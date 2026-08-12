@@ -1,4 +1,4 @@
-// src/components/Tournament/KnockoutDashboard/KnockoutScoreModal.jsx
+// src/components/Tournament/Knockout/KnockoutScoreModal.jsx
 export default function KnockoutScoreModal({
   isOpen,
   onClose,
