@@ -45,6 +45,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [seeding, setSeeding] = useState('random')
   const [bronzeMatch, setBronzeMatch] = useState(false)
   const [knockoutMatchType, setKnockoutMatchType] = useState('singles')
+  const [knockoutTeams, setKnockoutTeams] = useState([])  // For doubles
 
   const togglePlayer = (player) => {
     setSelectedPlayers(prev => {
@@ -144,6 +145,11 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           setBusy(false)
           return
         }
+        if (knockoutMatchType === 'doubles' && knockoutTeams.length < 2) {
+          setError('Need at least 2 teams for doubles knockout.')
+          setBusy(false)
+          return
+        }
       }
 
       if (tournamentType === 'americano' || tournamentType === 'mexicano') {
@@ -185,8 +191,21 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         playersList = selectedPlayers
         rounds = generateMexicanoRounds(selectedPlayers, numRounds)
       } else if (tournamentType === 'knockout') {
-        playersList = selectedPlayers
-        rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch, knockoutMatchType)
+        if (knockoutMatchType === 'doubles') {
+          // Use teams as players for the bracket
+          const teamPlayers = knockoutTeams.map((team, index) => ({
+            id: `team_${index}`,
+            name: `${team.player1.name} / ${team.player2.name}`,
+            isTeam: true,
+            player1: team.player1,
+            player2: team.player2,
+          }))
+          playersList = teamPlayers
+          rounds = generateKnockoutBracket(teamPlayers, seeding, bronzeMatch, 'doubles')
+        } else {
+          playersList = selectedPlayers
+          rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch, 'singles')
+        }
       }
 
       const { data, error: insertError } = await supabase
@@ -332,6 +351,7 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
               setTournamentType(type.id)
               setFixedTeams([])
               setSelectedPlayers([])
+              setKnockoutTeams([])
             }}
           >
             <div style={{ fontSize: '18px' }}>{type.label}</div>
@@ -351,6 +371,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           setBronzeMatch={setBronzeMatch}
           selectedPlayers={selectedPlayers}
           moveSelectedPlayer={moveSelectedPlayer}
+          knockoutTeams={knockoutTeams}
+          setKnockoutTeams={setKnockoutTeams}
+          setError={setError}
         />
       )}
 
