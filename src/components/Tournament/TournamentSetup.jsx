@@ -42,9 +42,9 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [newPlayerName, setNewPlayerName] = useState('')
 
   // Knockout specific
-  const [bronzeMatch, setBronzeMatch] = useState(false)
   const [knockoutMatchType, setKnockoutMatchType] = useState('singles')
-  const [knockoutTeams, setKnockoutTeams] = useState([])  // For doubles
+  const [knockoutTeams, setKnockoutTeams] = useState([])
+  const [bronzeMatch, setBronzeMatch] = useState(false)
 
   const togglePlayer = (player) => {
     setSelectedPlayers(prev => {
@@ -54,16 +54,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       } else {
         return [...prev, player]
       }
-    })
-  }
-
-  const moveSelectedPlayer = (index, direction) => {
-    setSelectedPlayers(prev => {
-      const next = [...prev]
-      const target = index + direction
-      if (target < 0 || target >= next.length) return prev
-      ;[next[index], next[target]] = [next[target], next[index]]
-      return next
     })
   }
 
@@ -191,7 +181,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         rounds = generateMexicanoRounds(selectedPlayers, numRounds)
       } else if (tournamentType === 'knockout') {
         if (knockoutMatchType === 'doubles') {
-          // Use teams as players for the bracket
           const teamPlayers = knockoutTeams.map((team, index) => ({
             id: `team_${index}`,
             name: `${team.player1.name} / ${team.player2.name}`,
@@ -359,20 +348,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
         ))}
       </div>
 
-      {/* Knockout Settings */}
-        {isKnockout && (
-          <KnockoutSettings
-            knockoutMatchType={knockoutMatchType}
-            setKnockoutMatchType={setKnockoutMatchType}
-            bronzeMatch={bronzeMatch}
-            setBronzeMatch={setBronzeMatch}
-            selectedPlayers={selectedPlayers}
-            knockoutTeams={knockoutTeams}
-            setKnockoutTeams={setKnockoutTeams}
-            setError={setError}
-          />
-        )}
-
       {/* Player Selection */}
       {!isFixedPartner && (
         <PlayerSelection
@@ -384,6 +359,20 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           newPlayerName={newPlayerName}
           setNewPlayerName={setNewPlayerName}
           handleAddPlayer={handleAddPlayer}
+        />
+      )}
+
+      {/* Knockout Settings — MOVED AFTER Player Selection */}
+      {isKnockout && (
+        <KnockoutSettings
+          knockoutMatchType={knockoutMatchType}
+          setKnockoutMatchType={setKnockoutMatchType}
+          bronzeMatch={bronzeMatch}
+          setBronzeMatch={setBronzeMatch}
+          selectedPlayers={selectedPlayers}
+          knockoutTeams={knockoutTeams}
+          setKnockoutTeams={setKnockoutTeams}
+          setError={setError}
         />
       )}
 
