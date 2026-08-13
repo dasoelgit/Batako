@@ -110,136 +110,137 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   }
 
   const startTournament = async () => {
-    setError('')
-    setBusy(true)
+  setError('')
+  setBusy(true)
 
-    try {
-      // Validation
-      if (tournamentType === 'singles' && selectedPlayers.length < 2) {
-        setError('Need at least 2 players for Singles.')
+  try {
+    // Validation
+    if (tournamentType === 'singles' && selectedPlayers.length < 2) {
+      setError('Need at least 2 players for Singles.')
+      setBusy(false)
+      return
+    }
+
+    if (tournamentType === 'fixed_partner') {
+      if (fixedTeams.length < 2) {
+        setError('Need at least 2 teams for Fixed Partner.')
         setBusy(false)
         return
       }
+    }
 
-      if (tournamentType === 'fixed_partner') {
-        if (fixedTeams.length < 2) {
-          setError('Need at least 2 teams for Fixed Partner.')
-          setBusy(false)
-          return
-        }
-      }
-
-      if (tournamentType === 'knockout') {
-        if (selectedPlayers.length < 2) {
-          setError('Need at least 2 players for Knockout.')
-          setBusy(false)
-          return
-        }
-        if (knockoutMatchType === 'doubles' && knockoutTeams.length < 2) {
-          setError('Need at least 2 teams for doubles knockout.')
-          setBusy(false)
-          return
-        }
-      }
-
-      if (tournamentType === 'americano' || tournamentType === 'mexicano') {
-        if (selectedPlayers.length < 3) {
-          setError('Need at least 3 players.')
-          setBusy(false)
-          return
-        }
-      }
-      } else if (tournamentType === 'group_knockout') {
-  // Group+Knockout is handled by GroupKnockoutSetup
-  // This should not be reached from here
-}
-
-      const finalName = tournamentName.trim() || getDefaultName()
-      const numRounds = useFullRoundRobin ? getMaxRounds() : totalRounds
-
-      if (tournamentType !== 'knockout' && numRounds < 1) {
-        setError('Please select number of rounds.')
+    if (tournamentType === 'knockout') {
+      if (selectedPlayers.length < 2) {
+        setError('Need at least 2 players for Knockout.')
         setBusy(false)
         return
       }
+      if (knockoutMatchType === 'doubles' && knockoutTeams.length < 2) {
+        setError('Need at least 2 teams for doubles knockout.')
+        setBusy(false)
+        return
+      }
+    }
 
-      let rounds = []
-      let playersList = []
+    if (tournamentType === 'americano' || tournamentType === 'mexicano') {
+      if (selectedPlayers.length < 3) {
+        setError('Need at least 3 players.')
+        setBusy(false)
+        return
+      }
+    }
 
-      if (tournamentType === 'singles') {
-        playersList = selectedPlayers
-        rounds = generateSinglesRounds(selectedPlayers, numRounds)
-      } else if (tournamentType === 'fixed_partner') {
-        playersList = fixedTeams.map((team, index) => ({
+    const finalName = tournamentName.trim() || getDefaultName()
+    const numRounds = useFullRoundRobin ? getMaxRounds() : totalRounds
+
+    if (tournamentType !== 'knockout' && tournamentType !== 'group_knockout' && numRounds < 1) {
+      setError('Please select number of rounds.')
+      setBusy(false)
+        return
+    }
+
+    let rounds = []
+    let playersList = []
+
+    if (tournamentType === 'singles') {
+      playersList = selectedPlayers
+      rounds = generateSinglesRounds(selectedPlayers, numRounds)
+    } else if (tournamentType === 'fixed_partner') {
+      playersList = fixedTeams.map((team, index) => ({
+        id: `team_${index}`,
+        name: `${team.player1.name} / ${team.player2.name}`,
+        player1: team.player1,
+        player2: team.player2,
+        isTeam: true,
+      }))
+      rounds = generateFixedPartnerRounds(fixedTeams, numRounds)
+    } else if (tournamentType === 'americano') {
+      playersList = selectedPlayers
+      rounds = generateAmericanoRounds(selectedPlayers, numRounds)
+    } else if (tournamentType === 'mexicano') {
+      playersList = selectedPlayers
+      rounds = generateMexicanoRounds(selectedPlayers, numRounds)
+    } else if (tournamentType === 'knockout') {
+      if (knockoutMatchType === 'doubles') {
+        const teamPlayers = knockoutTeams.map((team, index) => ({
           id: `team_${index}`,
           name: `${team.player1.name} / ${team.player2.name}`,
+          isTeam: true,
           player1: team.player1,
           player2: team.player2,
-          isTeam: true,
         }))
-        rounds = generateFixedPartnerRounds(fixedTeams, numRounds)
-      } else if (tournamentType === 'americano') {
+        playersList = teamPlayers
+        rounds = generateKnockoutBracket(teamPlayers, 'random', bronzeMatch, 'doubles')
+      } else {
         playersList = selectedPlayers
-        rounds = generateAmericanoRounds(selectedPlayers, numRounds)
-      } else if (tournamentType === 'mexicano') {
-        playersList = selectedPlayers
-        rounds = generateMexicanoRounds(selectedPlayers, numRounds)
-      } else if (tournamentType === 'knockout') {
-        if (knockoutMatchType === 'doubles') {
-          const teamPlayers = knockoutTeams.map((team, index) => ({
-            id: `team_${index}`,
-            name: `${team.player1.name} / ${team.player2.name}`,
-            isTeam: true,
-            player1: team.player1,
-            player2: team.player2,
-          }))
-          playersList = teamPlayers
-          rounds = generateKnockoutBracket(teamPlayers, 'random', bronzeMatch, 'doubles')
-        } else {
-          playersList = selectedPlayers
-          rounds = generateKnockoutBracket(selectedPlayers, 'random', bronzeMatch, 'singles')
-        }
+        rounds = generateKnockoutBracket(selectedPlayers, 'random', bronzeMatch, 'singles')
       }
-
-      const { data, error: insertError } = await supabase
-        .from('tennis_tournaments')
-        .insert({
-          name: finalName,
-          type: tournamentType,
-          status: 'active',
-          standing_by: tournamentType === 'knockout' ? 'win' : standingBy,
-          total_rounds: tournamentType === 'knockout' ? rounds.length : numRounds,
-          current_round: 1,
-          players: playersList,
-          rounds: rounds,
-          match_type: tournamentType === 'knockout' ? knockoutMatchType : null,
-        })
-        .select()
-        .single()
-
-      if (insertError) throw insertError
-
-      const pin = generatePIN()
-      const pinHash = await hashPIN(pin)
-
-      const { error: pinError } = await supabase
-        .from('tennis_tournaments')
-        .update({ admin_pin_hash: pinHash })
-        .eq('id', data.id)
-
-      if (pinError) throw pinError
-
-      savePINToStorage(data.id, pin)
-
-      alert(`🏆 Tournament Created!\n\nTournament: ${finalName}\n\n🔑 Admin PIN: ${pin}\n\nSave this PIN. You'll need it to edit tournament matches.`)
-
-      onTournamentCreated(data)
-    } catch (err) {
-      setError(err.message || 'Something went wrong')
+    } else if (tournamentType === 'group_knockout') {
+      // Group+Knockout is handled by GroupKnockoutSetup
+      setError('Group+Knockout must be created via dedicated setup.')
       setBusy(false)
+      return
     }
-  }
 
+    // Insert tournament
+    const { data, error: insertError } = await supabase
+      .from('tennis_tournaments')
+      .insert({
+        name: finalName,
+        type: tournamentType,
+        status: 'active',
+        standing_by: tournamentType === 'knockout' || tournamentType === 'group_knockout' ? 'win' : standingBy,
+        total_rounds: tournamentType === 'knockout' ? rounds.length : numRounds,
+        current_round: 1,
+        players: playersList,
+        rounds: rounds,
+        match_type: tournamentType === 'knockout' ? knockoutMatchType : null,
+      })
+      .select()
+      .single()
+
+    if (insertError) throw insertError
+
+    const pin = generatePIN()
+    const pinHash = await hashPIN(pin)
+
+    const { error: pinError } = await supabase
+      .from('tennis_tournaments')
+      .update({ admin_pin_hash: pinHash })
+      .eq('id', data.id)
+
+    if (pinError) throw pinError
+
+    savePINToStorage(data.id, pin)
+
+    alert(`🏆 Tournament Created!\n\nTournament: ${finalName}\n\n🔑 Admin PIN: ${pin}\n\nSave this PIN. You'll need it to edit tournament matches.`)
+
+    onTournamentCreated(data)
+  } catch (err) {
+    setError(err.message || 'Something went wrong')
+    setBusy(false)
+  }
+}
   const labelStyle = {
     fontSize: '11px',
     textTransform: 'uppercase',
