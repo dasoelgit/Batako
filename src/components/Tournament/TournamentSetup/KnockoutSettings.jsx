@@ -1,15 +1,10 @@
 // src/components/Tournament/TournamentSetup/KnockoutSettings.jsx
-import SeedOrderList from './SeedOrderList'
-
 export default function KnockoutSettings({
   knockoutMatchType,
   setKnockoutMatchType,
-  seeding,
-  setSeeding,
   bronzeMatch,
   setBronzeMatch,
   selectedPlayers,
-  moveSelectedPlayer,
   knockoutTeams,
   setKnockoutTeams,
   setError,
@@ -204,26 +199,6 @@ export default function KnockoutSettings({
             </div>
           )}
         </div>
-      )}
-
-      <span style={labelStyle}>Seeding</span>
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
-        <button
-          style={toggleButtonStyle(seeding === 'random')}
-          onClick={() => setSeeding('random')}
-        >
-          Random
-        </button>
-        <button
-          style={toggleButtonStyle(seeding === 'ranked')}
-          onClick={() => setSeeding('ranked')}
-        >
-          Ranked
-        </button>
-      </div>
-
-      {seeding === 'ranked' && selectedPlayers.length > 0 && (
-        <SeedOrderList players={selectedPlayers} movePlayer={moveSelectedPlayer} />
       )}
 
       <span style={labelStyle}>Bronze Match</span>
