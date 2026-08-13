@@ -15,36 +15,18 @@ export default function BracketMatchList({
   const [showLeftFade, setShowLeftFade] = useState(false)
   const [showRightFade, setShowRightFade] = useState(false)
 
-  // Build bracket columns
+  // Build bracket columns — one entry per round, holding just the real
+  // matches (no blank spacer slots). Columns naturally shrink in height
+  // round over round since each round has half as many matches.
   const buildBracketColumns = () => {
-    const columns = []
-
-    rounds.forEach((round, roundIndex) => {
-      const matches = round.matches.filter(m => !m.isBye)
-
-      const totalSlots = Math.pow(2, rounds.length - roundIndex)
-
-      const slots = []
-      for (let i = 0; i < totalSlots; i++) {
-        slots.push(null)
-      }
-
-      matches.forEach((match, matchIndex) => {
-        const slotIndex = matchIndex * 2
-        if (slotIndex < slots.length) {
-          slots[slotIndex] = { match, matchIndex }
-        }
-      })
-
-      columns.push({
-        roundName: round.round_name || `Round ${round.round_number}`,
-        isBronze: round.isBronze || false,
-        slots: slots,
-        roundIndex: roundIndex,
-      })
-    })
-
-    return columns
+    return rounds.map((round, roundIndex) => ({
+      roundName: round.round_name || `Round ${round.round_number}`,
+      isBronze: round.isBronze || false,
+      matches: round.matches
+        .map((match, matchIndex) => ({ match, matchIndex }))
+        .filter(({ match }) => !match.isBye),
+      roundIndex: roundIndex,
+    }))
   }
 
   const getRoundName = (round) => {
@@ -59,12 +41,12 @@ export default function BracketMatchList({
     if (!scrollRef.current || columns.length === 0) return
 
     let targetIndex = columns.findIndex(col =>
-      col.slots.some(slot => slot && isMatchReady(slot.match))
+      col.matches.some(({ match }) => isMatchReady(match))
     )
 
     if (targetIndex === -1) {
       targetIndex = columns.findIndex(col =>
-        col.slots.some(slot => slot && !slot.match.completed)
+        col.matches.some(({ match }) => !match.completed)
       )
     }
 
@@ -199,6 +181,7 @@ export default function BracketMatchList({
           background: '#f8faf8',
           borderRadius: '8px',
           overflowX: 'auto',
+          alignItems: 'flex-start',
         }}
       >
         {columns.map((column, colIndex) => {
@@ -237,23 +220,8 @@ export default function BracketMatchList({
               </div>
 
               {/* Matches in column */}
-              {column.slots.map((slot, idx) => {
+              {column.matches.map(({ match, matchIndex }, idx) => {
                 const spacing = isFinal ? 0 : 20
-
-                if (!slot) {
-                  return (
-                    <div
-                      key={idx}
-                      style={{
-                        height: isFinal ? 'var(--match-height-final)' : 'var(--match-height)',
-                        marginBottom: spacing,
-                        visibility: 'hidden',
-                      }}
-                    />
-                  )
-                }
-
-                const { match, matchIndex } = slot
                 const isCompleted = match.completed
                 const isReady = isMatchReady(match)
                 
