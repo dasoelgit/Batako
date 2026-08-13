@@ -10,6 +10,7 @@ import {
 import { teamLabel } from '../../utils/helpers'
 import { verifyPIN, getPINFromStorage, savePINToStorage, removePINFromStorage } from '../../utils/pinUtils'
 import KnockoutDashboard from './KnockoutDashboard'
+import GroupKnockoutDashboard from './GroupKnockoutDashboard'
 import ScoreModal from './ScoreModal'
 import StandingsTable from './TournamentDashboard/StandingsTable'
 import RoundTabs from './TournamentDashboard/RoundTabs'
@@ -395,6 +396,16 @@ export default function TournamentDashboard({ tournamentId, onTournamentComplete
       />
     )
   }
+  // --- GROUP + KNOCKOUT ---
+if (tournament.type === 'group_knockout') {
+  return (
+    <GroupKnockoutDashboard
+      tournament={tournament}
+      onTournamentComplete={onTournamentComplete}
+      onBack={onBack}
+    />
+  )
+}
 
   const tournamentLabels = {
     americano: 'Americano',
