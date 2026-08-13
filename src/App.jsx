@@ -2,26 +2,93 @@
 import { Fragment, useEffect, useState, useRef } from 'react'
 import { supabase, TENNIS_ADMIN_PIN } from './utils/supabase'
 import { teamLabel, formatJakartaTime } from './utils/helpers'
-
-// Match components
 import MatchSetup from './components/Match/MatchSetup'
 import LiveConfig from './components/Match/LiveConfig'
 import LiveScoreboard from './components/Match/LiveScoreboard'
 import LiveScoreboardLandscape from './components/Match/LiveScoreboardLandscape'
-
-// Tournament components
 import TournamentList from './components/Tournament/TournamentList'
 import TournamentSetup from './components/Tournament/TournamentSetup'
 import TournamentDashboard from './components/Tournament/TournamentDashboard'
-
-// Stats
+import GroupKnockoutSetup from './components/Tournament/GroupKnockoutSetup'
+import AdminPanel from './components/AdminPanel'
 import Stats from './components/Stats/Stats'
-
-// History
 import History from './components/History/History'
 
-// Admin
-import AdminPanel from './components/AdminPanel'
+// ============================================================
+// HISTORY
+// ============================================================
+function HistoryComponent({ refreshKey }) {
+  const [matches, setMatches] = useState(null)
+
+  useEffect(() => {
+    let active = true
+    supabase
+      .from('tennis_matches')
+      .select('*')
+      .eq('status', 'completed')
+      .order('completed_at', { ascending: false })
+      .limit(50)
+      .then(({ data }) => {
+        if (active && data) setMatches(data)
+      })
+    return () => { active = false }
+  }, [refreshKey])
+
+  if (matches === null) return <div className="loading">Loading history…</div>
+  if (matches.length === 0) return <div className="empty-state">No matches played yet.</div>
+
+  return (
+    <div className="card">
+      {matches.map((m) => {
+        const isDraw = m.draw === true
+        const isTournament = m.is_tournament_match === true
+        return (
+          <div key={m.id} className="history-row">
+            <div className="history-teams">
+              <span className={!isDraw && m.winner === 1 ? 'history-winner' : ''}>
+                {teamLabel(m.team1_players)}
+              </span>
+              <span style={{ color: 'var(--text-muted)', fontWeight: 400 }}>vs</span>
+              <span className={!isDraw && m.winner === 2 ? 'history-winner' : ''}>
+                {teamLabel(m.team2_players)}
+              </span>
+            </div>
+            <div className="history-games">
+              {isDraw ? (
+                <span style={{ color: 'var(--gold)', fontWeight: '600' }}>⚖️ DRAW</span>
+              ) : (
+                <span style={{ color: 'var(--accent-dark)', fontWeight: '600' }}>
+                  {m.winner === 1 ? teamLabel(m.team1_players) : teamLabel(m.team2_players)} WINS
+                </span>
+              )}
+              {' · '}
+              {m.sets?.map((s, i) => (
+                <span key={i}>
+                  {i > 0 && ' · '}
+                  {s.team1_games}-{s.team2_games}
+                  {s.tiebreak && ` (${s.tiebreak})`}
+                </span>
+              ))}
+              {isTournament && (
+                <span style={{
+                  fontSize: '10px',
+                  marginLeft: '6px',
+                  color: '#d4a843',
+                  fontWeight: '600',
+                }}>
+                  🏆
+                </span>
+              )}
+            </div>
+            <div className="history-games" style={{ marginTop: 4 }}>
+              {formatJakartaTime(m.completed_at)}
+            </div>
+          </div>
+        )
+      })}
+    </div>
+  )
+}
 
 // ============================================================
 // APP
@@ -45,6 +112,7 @@ export default function App() {
   // Tournament state
   const [tournamentView, setTournamentView] = useState('list')
   const [selectedTournamentId, setSelectedTournamentId] = useState(null)
+  const [setupTournamentType, setSetupTournamentType] = useState(null)
 
   const refreshPlayers = async () => {
     const { data } = await supabase.from('tennis_players').select('id, name').order('name')
@@ -135,18 +203,21 @@ export default function App() {
     setTournamentView('dashboard')
   }
 
-  const handleCreateNewTournament = () => {
+  const handleCreateNewTournament = (type = null) => {
+    setSetupTournamentType(type)
     setTournamentView('setup')
   }
 
   const handleTournamentBack = () => {
     setTournamentView('list')
     setSelectedTournamentId(null)
+    setSetupTournamentType(null)
   }
 
   const handleTournamentCreated = (tournament) => {
     setSelectedTournamentId(tournament.id)
     setTournamentView('dashboard')
+    setSetupTournamentType(null)
   }
 
   const handleTournamentComplete = () => {
@@ -166,74 +237,72 @@ export default function App() {
     )
   }
 
- 
-// Admin page (overrides everything)
-if (showAdmin) {
-  return (
-    <div className="app-shell">
-      <div className="brand">
-        <img 
-          src="/logo.png" 
-          alt="Batako Tennis Club" 
-          style={{ 
-            height: '120px', 
-            width: 'auto',
-            maxWidth: '200px',
-          }} 
+  // Admin page (overrides everything)
+  if (showAdmin) {
+    return (
+      <div className="app-shell">
+        <div className="brand">
+          <img
+            src="/logo.png"
+            alt="Batako Tennis Club"
+            style={{
+              height: '50px',
+              width: 'auto',
+              maxWidth: '200px',
+            }}
+          />
+        </div>
+        <AdminPanel
+          players={players}
+          refreshPlayers={refreshPlayers}
+          onDataChanged={() => setRefreshKey(k => k + 1)}
+          onBack={handleAdminBack}
         />
       </div>
-      <AdminPanel
-        players={players}
-        refreshPlayers={refreshPlayers}
-        onDataChanged={() => setRefreshKey(k => k + 1)}
-        onBack={handleAdminBack}
-      />
-    </div>
-  )
-}
+    )
+  }
 
-// Main app return — EVERYTHING wrapped in one parent
-return (
-  <div className="app-shell">
-    <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
-      <img 
-        src="/logo.png" 
-        alt="Batako Tennis Club" 
-        style={{ 
-          height: '120px', 
-          width: 'auto',
-          maxWidth: '200px',
-        }} 
-      />
-    </div>
+  return (
+    <div className="app-shell">
+      <div className="brand" onClick={handleTitleTap} style={{ cursor: 'pointer' }}>
+        <img
+          src="/logo.png"
+          alt="Batako Tennis Club"
+          style={{
+            height: '50px',
+            width: 'auto',
+            maxWidth: '200px',
+          }}
+        />
+      </div>
 
-    <div className="tabs">
-      <button
-        className={`tab ${tab === 'live' ? 'active' : ''}`}
-        onClick={() => setTab('live')}
-      >
-        Match
-      </button>
-      <button
-        className={`tab ${tab === 'stats' ? 'active' : ''}`}
-        onClick={() => setTab('stats')}
-      >
-        Stats
-      </button>
-      <button
-        className={`tab ${tab === 'history' ? 'active' : ''}`}
-        onClick={() => setTab('history')}
-      >
-        History
-      </button>
-      <button
-        className={`tab ${tab === 'tournament' ? 'active' : ''}`}
-        onClick={() => setTab('tournament')}
-      >
-        🏆
-      </button>
-    </div>
-    
+      <div className="tabs">
+        <button
+          className={`tab ${tab === 'live' ? 'active' : ''}`}
+          onClick={() => setTab('live')}
+        >
+          Match
+        </button>
+        <button
+          className={`tab ${tab === 'stats' ? 'active' : ''}`}
+          onClick={() => setTab('stats')}
+        >
+          Stats
+        </button>
+        <button
+          className={`tab ${tab === 'history' ? 'active' : ''}`}
+          onClick={() => setTab('history')}
+        >
+          History
+        </button>
+        <button
+          className={`tab ${tab === 'tournament' ? 'active' : ''}`}
+          onClick={() => setTab('tournament')}
+        >
+          🏆
+        </button>
+      </div>
+
       {tab === 'live' && (
         showLiveConfig ? (
           <LiveConfig
@@ -262,7 +331,7 @@ return (
 
       {tab === 'stats' && <Stats refreshKey={refreshKey} />}
 
-      {tab === 'history' && <History refreshKey={refreshKey} />}
+      {tab === 'history' && <HistoryComponent refreshKey={refreshKey} />}
 
       {tab === 'tournament' && (
         tournamentView === 'list' ? (
@@ -271,12 +340,21 @@ return (
             onCreateNew={handleCreateNewTournament}
           />
         ) : tournamentView === 'setup' ? (
-          <TournamentSetup
-            players={players}
-            refreshPlayers={refreshPlayers}
-            onTournamentCreated={handleTournamentCreated}
-            onBack={handleTournamentBack}
-          />
+          setupTournamentType === 'group_knockout' ? (
+            <GroupKnockoutSetup
+              players={players}
+              refreshPlayers={refreshPlayers}
+              onTournamentCreated={handleTournamentCreated}
+              onBack={handleTournamentBack}
+            />
+          ) : (
+            <TournamentSetup
+              players={players}
+              refreshPlayers={refreshPlayers}
+              onTournamentCreated={handleTournamentCreated}
+              onBack={handleTournamentBack}
+            />
+          )
         ) : tournamentView === 'dashboard' && selectedTournamentId ? (
           <TournamentDashboard
             tournamentId={selectedTournamentId}
