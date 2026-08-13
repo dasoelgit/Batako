@@ -22,6 +22,7 @@ const TOURNAMENT_TYPES = [
   { id: 'singles', label: 'Singles', desc: 'Individual matches' },
   { id: 'fixed_partner', label: 'Fixed Partner', desc: 'Partners stay together' },
   { id: 'knockout', label: 'Knockout', desc: 'Single elimination' },
+  { id: 'group_knockout', label: 'Group + Knockout', desc: 'Groups → Knockout' },
 ]
 
 const POINTS_DISTRIBUTION_OPTIONS = [
@@ -148,6 +149,10 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
           return
         }
       }
+      } else if (tournamentType === 'group_knockout') {
+  // Group+Knockout is handled by GroupKnockoutSetup
+  // This should not be reached from here
+}
 
       const finalName = tournamentName.trim() || getDefaultName()
       const numRounds = useFullRoundRobin ? getMaxRounds() : totalRounds
@@ -313,41 +318,41 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       />
 
       {/* Tournament Type */}
-      <span style={labelStyle}>Tournament Type</span>
-      <div style={{
-        display: 'grid',
-        gridTemplateColumns: '1fr 1fr',
-        gap: '6px',
-        marginBottom: '16px',
-      }}>
-        {TOURNAMENT_TYPES.map((type) => (
-          <button
-            key={type.id}
-            style={{
-              padding: '10px',
-              borderRadius: '8px',
-              border: tournamentType === type.id ? '2px solid #d4e94b' : '1px solid #d0ddd0',
-              background: tournamentType === type.id ? 'rgba(212, 233, 75, 0.15)' : '#ffffff',
-              color: tournamentType === type.id ? '#1a2a1a' : '#6a7a6a',
-              fontWeight: tournamentType === type.id ? '700' : '400',
-              cursor: 'pointer',
-              fontSize: '13px',
-              transition: 'all 0.2s ease',
-              textAlign: 'center',
-            }}
-            onClick={() => {
-              setTournamentType(type.id)
-              setFixedTeams([])
-              setSelectedPlayers([])
-              setKnockoutTeams([])
-            }}
-          >
-            <div style={{ fontSize: '18px' }}>{type.label}</div>
-            <div style={{ fontSize: '10px', color: '#6a7a6a' }}>{type.desc}</div>
-          </button>
-        ))}
-      </div>
-
+<span style={labelStyle}>Tournament Type</span>
+<div style={{
+  display: 'grid',
+  gridTemplateColumns: '1fr 1fr',
+  gap: '6px',
+  marginBottom: '16px',
+}}>
+  {TOURNAMENT_TYPES.map((type) => (
+    <button
+      key={type.id}
+      style={{
+        padding: '10px',
+        borderRadius: '8px',
+        border: tournamentType === type.id ? '2px solid #d4e94b' : '1px solid #d0ddd0',
+        background: tournamentType === type.id ? 'rgba(212, 233, 75, 0.15)' : '#ffffff',
+        color: tournamentType === type.id ? '#1a2a1a' : '#6a7a6a',
+        fontWeight: tournamentType === type.id ? '700' : '400',
+        cursor: 'pointer',
+        fontSize: '13px',
+        transition: 'all 0.2s ease',
+        textAlign: 'center',
+      }}
+      onClick={() => {
+        setTournamentType(type.id)
+        setFixedTeams([])
+        setSelectedPlayers([])
+        setKnockoutTeams([])
+      }}
+    >
+      <div style={{ fontSize: '18px' }}>{type.label}</div>
+      <div style={{ fontSize: '10px', color: '#6a7a6a' }}>{type.desc}</div>
+    </button>
+  ))}
+</div>
+      
       {/* Player Selection */}
       {!isFixedPartner && (
         <PlayerSelection
