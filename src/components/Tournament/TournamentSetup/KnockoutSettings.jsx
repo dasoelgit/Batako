@@ -33,7 +33,7 @@ export default function KnockoutSettings({
   })
 
   // ============================================================
-  // KNOCKOUT DOUBLES TEAM FUNCTIONS (same as Fixed Partner)
+  // KNOCKOUT DOUBLES TEAM FUNCTIONS
   // ============================================================
   const autoCreateKnockoutTeams = () => {
     if (selectedPlayers.length < 2) {
@@ -72,8 +72,9 @@ export default function KnockoutSettings({
 
   return (
     <>
+      {/* Match Type */}
       <span style={labelStyle}>Match Type</span>
-      <div style={{ display: 'flex', gap: '6px', marginBottom: '8px' }}>
+      <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
         <button
           style={toggleButtonStyle(knockoutMatchType === 'singles')}
           onClick={() => {
@@ -87,27 +88,13 @@ export default function KnockoutSettings({
           style={toggleButtonStyle(knockoutMatchType === 'doubles')}
           onClick={() => {
             setKnockoutMatchType('doubles')
-            // Auto-create teams when switching to doubles if even number
-            if (selectedPlayers.length % 2 === 0 && selectedPlayers.length >= 2) {
-              const shuffled = [...selectedPlayers].sort(() => Math.random() - 0.5)
-              const teams = []
-              for (let i = 0; i < shuffled.length; i += 2) {
-                if (i + 1 < shuffled.length) {
-                  teams.push({
-                    player1: shuffled[i],
-                    player2: shuffled[i + 1],
-                  })
-                }
-              }
-              setKnockoutTeams(teams)
-            }
           }}
         >
           Doubles
         </button>
       </div>
 
-      {/* Knockout Doubles Team Builder (same as Fixed Partner) */}
+      {/* Doubles Team Builder (only when doubles is selected) */}
       {isKnockoutDoubles && (
         <div style={{ marginBottom: '16px' }}>
           <div style={{
@@ -201,6 +188,7 @@ export default function KnockoutSettings({
         </div>
       )}
 
+      {/* Bronze Match */}
       <span style={labelStyle}>Bronze Match</span>
       <div style={{ display: 'flex', gap: '6px', marginBottom: '16px' }}>
         <button
