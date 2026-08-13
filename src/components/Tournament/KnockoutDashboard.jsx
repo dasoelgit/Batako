@@ -163,6 +163,7 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
       const match = round.matches[selectedMatchIndex]
 
       let winner = null
+      let loser = null
       let draw = false
       if (s1 > s2) {
         if (isDoubles && match.team1.length > 0) {
@@ -174,6 +175,15 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
         } else {
           winner = match.team1[0]
         }
+        if (isDoubles && match.team2.length > 0) {
+          loser = {
+            id: match.team2.map(p => p.id).join('-'),
+            name: match.team2.map(p => p.name).join(' / '),
+            players: match.team2,
+          }
+        } else {
+          loser = match.team2[0]
+        }
       } else if (s2 > s1) {
         if (isDoubles && match.team2.length > 0) {
           winner = {
@@ -183,6 +193,15 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
           }
         } else {
           winner = match.team2[0]
+        }
+        if (isDoubles && match.team1.length > 0) {
+          loser = {
+            id: match.team1.map(p => p.id).join('-'),
+            name: match.team1.map(p => p.name).join(' / '),
+            players: match.team1,
+          }
+        } else {
+          loser = match.team1[0]
         }
       } else {
         draw = true
@@ -277,6 +296,31 @@ export default function KnockoutDashboard({ tournament, onTournamentComplete, on
                 nextMatch.team2Name = winner.name || 'TBD'
               }
               break
+            }
+          }
+        }
+      }
+
+      // --- UPDATE BRONZE MATCH WITH THE LOSER, IF THIS WAS A SEMIFINAL ---
+      const bronzeRound = updatedRounds.find(r => r.isBronze)
+      if (bronzeRound && loser && round.round_name === 'Semifinal') {
+        const bronzeMatchObj = bronzeRound.matches[0]
+        if (bronzeMatchObj) {
+          if (bronzeMatchObj.team1?.[0]?.isPlaceholder && bronzeMatchObj.team1[0].id === match.id) {
+            if (isDoubles && loser.players) {
+              bronzeMatchObj.team1 = loser.players
+              bronzeMatchObj.team1Name = loser.name
+            } else {
+              bronzeMatchObj.team1 = [loser]
+              bronzeMatchObj.team1Name = loser.name || 'TBD'
+            }
+          } else if (bronzeMatchObj.team2?.[0]?.isPlaceholder && bronzeMatchObj.team2[0].id === match.id) {
+            if (isDoubles && loser.players) {
+              bronzeMatchObj.team2 = loser.players
+              bronzeMatchObj.team2Name = loser.name
+            } else {
+              bronzeMatchObj.team2 = [loser]
+              bronzeMatchObj.team2Name = loser.name || 'TBD'
             }
           }
         }
