@@ -42,7 +42,6 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
   const [newPlayerName, setNewPlayerName] = useState('')
 
   // Knockout specific
-  const [seeding, setSeeding] = useState('random')
   const [bronzeMatch, setBronzeMatch] = useState(false)
   const [knockoutMatchType, setKnockoutMatchType] = useState('singles')
   const [knockoutTeams, setKnockoutTeams] = useState([])  // For doubles
@@ -201,10 +200,10 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
             player2: team.player2,
           }))
           playersList = teamPlayers
-          rounds = generateKnockoutBracket(teamPlayers, seeding, bronzeMatch, 'doubles')
+          rounds = generateKnockoutBracket(teamPlayers, 'random', bronzeMatch, 'doubles')
         } else {
           playersList = selectedPlayers
-          rounds = generateKnockoutBracket(selectedPlayers, seeding, bronzeMatch, 'singles')
+          rounds = generateKnockoutBracket(selectedPlayers, 'random', bronzeMatch, 'singles')
         }
       }
 
@@ -361,21 +360,18 @@ export default function TournamentSetup({ players, refreshPlayers, onTournamentC
       </div>
 
       {/* Knockout Settings */}
-      {isKnockout && (
-        <KnockoutSettings
-          knockoutMatchType={knockoutMatchType}
-          setKnockoutMatchType={setKnockoutMatchType}
-          seeding={seeding}
-          setSeeding={setSeeding}
-          bronzeMatch={bronzeMatch}
-          setBronzeMatch={setBronzeMatch}
-          selectedPlayers={selectedPlayers}
-          moveSelectedPlayer={moveSelectedPlayer}
-          knockoutTeams={knockoutTeams}
-          setKnockoutTeams={setKnockoutTeams}
-          setError={setError}
-        />
-      )}
+        {isKnockout && (
+          <KnockoutSettings
+            knockoutMatchType={knockoutMatchType}
+            setKnockoutMatchType={setKnockoutMatchType}
+            bronzeMatch={bronzeMatch}
+            setBronzeMatch={setBronzeMatch}
+            selectedPlayers={selectedPlayers}
+            knockoutTeams={knockoutTeams}
+            setKnockoutTeams={setKnockoutTeams}
+            setError={setError}
+          />
+        )}
 
       {/* Player Selection */}
       {!isFixedPartner && (
