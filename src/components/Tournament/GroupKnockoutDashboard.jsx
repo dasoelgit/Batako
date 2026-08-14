@@ -176,6 +176,7 @@ export default function GroupKnockoutDashboard({ tournament, onTournamentComplet
                 </div>
                 {group.standings.map((s, i) => {
                   const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `${i+1}.`
+                  const isAdvancing = i < advancePerGroup
                   return (
                     <div key={s.id} style={{
                       display: 'grid',
@@ -197,22 +198,23 @@ export default function GroupKnockoutDashboard({ tournament, onTournamentComplet
                       <div style={{ textAlign: 'center', color: '#6a7a6a' }}>{s.L}</div>
                       <div style={{ textAlign: 'center', color: '#d4a843' }}>{s.T}</div>
                       <div style={{ textAlign: 'center', fontWeight: '700', color: '#d4a843' }}>{s.Pts}</div>
+                      {isAdvancing && (
+                        <div style={{
+                          gridColumn: '1 / -1',
+                          marginTop: '4px',
+                          padding: '4px',
+                          background: 'rgba(74, 222, 128, 0.15)',
+                          borderRadius: '4px',
+                          fontSize: '11px',
+                          color: '#4ade80',
+                          textAlign: 'center',
+                        }}>
+                          ✅ Advances to Knockout
+                        </div>
+                      )}
                     </div>
                   )
                 })}
-                {i < advancePerGroup && (
-                  <div style={{
-                    marginTop: '4px',
-                    padding: '4px',
-                    background: 'rgba(74, 222, 128, 0.15)',
-                    borderRadius: '4px',
-                    fontSize: '11px',
-                    color: '#4ade80',
-                    textAlign: 'center',
-                  }}>
-                    ✅ Advances to Knockout
-                  </div>
-                )}
               </div>
             </div>
           ))}
