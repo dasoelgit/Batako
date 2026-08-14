@@ -15,6 +15,7 @@ export default function GroupKnockoutDashboard({ tournament, onTournamentComplet
   const groups = rounds.groups || []
   const knockoutRounds = rounds.knockoutRounds || []
   const advancingPlayers = rounds.advancingPlayers || []
+  const advancePerGroup = rounds.advancePerGroup || 2  // ← ADD THIS
   const isDoubles = tournamentData.match_type === 'doubles'
 
   // Check if tournament is complete
