@@ -28,6 +28,8 @@ export { generateFixedPartnerRounds } from './fixedPartner'
 // Knockout
 export { generateKnockoutBracket, updateKnockoutWinner } from './knockout'
 
+export { generateGroupKnockout } from './groupKnockout'
+
 // Standings
 export {
   calculateTournamentStandings,
